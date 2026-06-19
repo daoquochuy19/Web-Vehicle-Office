@@ -1,0 +1,655 @@
+:root {
+  --bg: #0f172a;
+  --surface: rgba(15, 23, 42, 0.94);
+  --card: rgba(15, 23, 42, 0.88);
+  --text: #f8fafc;
+  --muted: #94a3b8;
+  --primary: #6366f1;
+  --accent: #22c55e;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--text);
+  min-height: 100%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, rgba(15, 23, 42, 0.24) 100%),
+              url('../back-ground-login.png');
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button, input {
+  font: inherit;
+}
+
+.page-shell {
+  min-height: calc(100vh - 82px);
+  padding: 6vh clamp(16px, 4vw, 36px) 32px;
+  padding-top: calc(100px + 6vh);
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  background: transparent;
+}
+
+.page-shell:not(.login-shell) {
+  align-items: center;
+  justify-content: center;
+  padding-top: 0;
+  padding-bottom: 40px;
+}
+
+.page-shell.vehicle-registration-shell-no-bg {
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 100px;
+  width: 100%;
+}
+
+.login-shell {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.page-shell.login-shell {
+  padding-left: clamp(80px, 12vw, 140px);
+  padding-right: clamp(16px, 4vw, 36px);
+}
+
+.card {
+  width: min(360px, 100%);
+  max-width: 360px;
+  background: rgba(255, 255, 255, 0.98);
+  color: #0f172a;
+  border: none;
+  border-radius: 34px;
+  box-shadow: 0 35px 70px rgba(15, 23, 42, 0.12);
+  padding: 36px 32px;
+  margin-top: 150px;
+}
+
+.login-brand {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.login-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #2339d4;
+  color: #fff;
+  border-radius: 999px;
+  padding: 10px 20px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  font-size: 0.95rem;
+}
+
+.login-brand h1 {
+  font-size: clamp(2rem, 4vw, 2.5rem);
+  margin: 0;
+  line-height: 1.05;
+  color: #0f172a;
+}
+
+.lead {
+  display: none;
+}
+
+.form-title {
+  margin: 0 0 20px;
+  font-size: 1.9rem;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 10px;
+  color: #0f172a;
+  font-size: 0.95rem;
+  letter-spacing: 0.01em;
+  font-weight: 600;
+}
+.form-label-dark {
+  color: #0f172a !important;
+}
+.form-input {
+  width: 100%;
+  padding: 16px 18px;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.15);
+  background: rgba(255, 255, 255, 0.95);
+  color: #0f172a;
+  margin-bottom: 0;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+}
+
+.form-input::placeholder {
+  color: #cbd5e1;
+}
+
+.form-input:focus {
+  outline: 2px solid rgba(99, 102, 241, 0.4);
+  border-color: rgba(99, 102, 241, 0.6);
+  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.12);
+}
+
+.action-button {
+  width: 100%;
+  padding: 14px 18px;
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(90deg, #3b82f6, #2563eb);
+  color: #fff;
+  cursor: pointer;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  margin-top: 0;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 16px 30px rgba(59, 130, 246, 0.20);
+  line-height: 1.5;
+}
+
+.action-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 20px 38px rgba(59, 130, 246, 0.30);
+}
+
+.secondary-button {
+  width: 100%;
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: #fff;
+  color: #0f172a;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  cursor: pointer;
+  margin-top: 0;
+  font-weight: 600;
+  transition: background 0.2s ease;
+  line-height: 1.5;
+}
+
+.secondary-button:hover {
+  background: rgba(15, 23, 42, 0.04);
+}
+
+.notice {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(254, 226, 226, 0.95);
+  color: #991b1b;
+  border: 1px solid rgba(239, 68, 68, 0.18);
+  font-size: 0.95rem;
+}
+
+.navbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  width: 100%;
+  padding: 18px clamp(20px, 5vw, 40px);
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: transparent;
+  z-index: 20;
+}
+
+.nav-button {
+  background: #ef4444;
+  border: none;
+  border-radius: 999px;
+  padding: 10px 22px;
+  cursor: pointer;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.9rem;
+  letter-spacing: 0.03em;
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35);
+  transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+}
+
+.nav-button:hover {
+  background: #dc2626;
+  box-shadow: 0 6px 20px rgba(239, 68, 68, 0.45);
+  transform: translateY(-1px);
+}
+
+.nav-button:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+
+.navbar a {
+  color: #fff;
+}
+
+.vehicle-panel {
+  display: grid;
+  gap: 24px;
+  margin-top: clamp(40px, 8vh, 90px);
+}
+
+.vehicle-card {
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  border-radius: 22px;
+  padding: 24px;
+}
+
+.vehicle-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 14px;
+}
+
+.vehicle-item {
+  padding: 18px 20px;
+  border-radius: 18px;
+  background: rgba(15, 23, 42, 0.76);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.vehicle-item span {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.action-row {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr auto;
+}
+
+.vehicle-registration-shell {
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding-top: 100px;
+  padding-bottom: 60px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.vehicle-registration-shell-no-bg {
+  min-height: 100vh;
+  padding: 100px clamp(16px, 4vw, 40px) 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  background: linear-gradient(135deg, #f0f9ff 0%, #f0f4f8 50%, #f8f6ff 100%);
+}
+
+.registration-form-container {
+  width: 100%;
+  max-width: 1200px;
+  padding: 0;
+  margin: 0 auto;
+}
+
+h2 {
+  margin: 0 0 32px;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.form-layout-2col {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 48px;
+}
+
+.form-left {
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  padding: 32px;
+  border-radius: 16px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+.form-right {
+  display: flex;
+  flex-direction: column;
+  padding: 32px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+.vehicle-registration-form {
+  display: grid;
+  gap: 20px;
+}
+
+.form-input-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.file-upload-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+}
+
+.file-label {
+  color: #0f172a;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.file-upload-btn {
+  padding: 8px 20px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #0f172a;
+  transition: all 0.2s;
+}
+
+.file-upload-btn:hover {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+}
+
+.quota-table {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.quota-header {
+  padding: 12px 16px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.read-only-section {
+  display: grid;
+  gap: 20px;
+  padding: 20px;
+  background: rgba(148, 163, 184, 0.08);
+  border-radius: 12px;
+  grid-column: 1 / -1;
+}
+
+.info-row {
+  display: grid;
+  gap: 28px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.info-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.info-label {
+  color: #94a3b8;
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.info-value {
+  color: #0f172a;
+  font-size: 0.95rem;
+  font-weight: 500;
+  padding: 10px 0;
+}
+
+.form-textarea {
+  width: 100%;
+  padding: 16px 18px;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.15);
+  background: rgba(255, 255, 255, 0.95);
+  color: #0f172a;
+  font-family: inherit;
+  font-size: 0.95rem;
+  resize: vertical;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+}
+
+.form-textarea::placeholder {
+  color: #cbd5e1;
+}
+
+.form-textarea:focus {
+  outline: 2px solid rgba(99, 102, 241, 0.4);
+  border-color: rgba(99, 102, 241, 0.6);
+}
+
+.checkbox-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: #0f172a;
+}
+
+.checkbox-inline input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--primary);
+}
+
+.file-uploads-section {
+  display: grid;
+  gap: 20px;
+  padding: 20px;
+  background: rgba(148, 163, 184, 0.06);
+  border-radius: 12px;
+}
+
+.file-upload-item {
+  display: grid;
+  gap: 10px;
+}
+
+.file-label {
+  color: #0f172a;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.file-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 8px;
+}
+
+.file-input-hidden {
+  display: none;
+}
+
+.file-item-name {
+  flex: 1;
+  color: #0f172a;
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.file-action-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.file-action-btn:hover {
+  background: rgba(15, 23, 42, 0.08);
+}
+
+.form-actions {
+  display: flex;
+  gap: 16px;
+  justify-content: flex-end;
+}
+
+.vehicle-registration-form {
+  display: grid;
+  gap: 32px;
+}
+
+.form-row {
+  display: grid;
+  gap: 28px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.form-row:last-of-type .form-group:last-child {
+  grid-column: 1;
+}
+
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-checkboxes {
+  display: grid;
+  gap: 14px;
+  padding: 20px 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.1);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  color: #0f172a;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: var(--primary);
+}
+
+@media (max-width: 1024px) {
+  .form-layout-2col {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+
+  .vehicle-registration-shell-no-bg {
+    padding: 100px clamp(12px, 3vw, 24px) 24px;
+  }
+
+  .form-left,
+  .form-right {
+    padding: 24px;
+  }
+}
+
+@media (max-width: 720px) {
+  .navbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .action-row {
+    grid-template-columns: 1fr;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .form-input-row {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .info-row {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .form-layout-2col {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .form-right {
+    margin-top: 0;
+  }
+
+  .card {
+    padding: 28px;
+    border-radius: 28px;
+    width: min(100%, 100%);
+  }
+
+  .vehicle-registration-shell-no-bg {
+    padding: 80px 16px 24px;
+  }
+
+  .registration-form-container {
+    max-width: 100%;
+  }
+
+  h2 {
+    font-size: 1.2rem;
+  }
+}
