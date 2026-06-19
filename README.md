@@ -1,21 +1,14 @@
-Modern Login + Vehicle Management (React + Django)
+# Web Vehicle Office
 
-Overview
-- Frontend: React (Vite)
-- Backend: Django + Django REST Framework (SQLite for dev)
+Portal đăng ký xe nội bộ, tích hợp với hệ thống Odoo qua REST API.
 
-Quick start (backend):
+## Tech stack
 
-```bash
-cd backend
-python -m venv venv
-venv\Scripts\activate   # Windows
-pip install -r requirements.txt
-python manage.py migrate
-python manage.py runserver
-```
+- **Frontend:** React 18 + Vite
+- **Backend:** Odoo (REST API)
+- **Auth:** JWT (access token + refresh token)
 
-Quick start (frontend):
+## Cài đặt & chạy
 
 ```bash
 cd frontend
@@ -23,8 +16,10 @@ npm install
 npm run dev
 ```
 
-Notes
-- API base: `http://localhost:8000/api/`
-- Login endpoint: `POST /api/login/` (send `username` and `password`)
-- Register endpoint: `POST /api/register/` (send `username`, `password`)
-- After successful login frontend redirects to `/my/vehicle-registration`
+## Biến môi trường
+
+Tạo file `frontend/.env`:
+
+```env
+VITE_ODOO_DB=ten_database_odoo
+```

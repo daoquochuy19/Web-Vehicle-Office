@@ -1,5 +1,6 @@
 import React, {useState} from 'react'
 import {useNavigate, Link} from 'react-router-dom'
+import { saveTokens } from '../utils/tokenManager'
 
 export default function Login({ onLogin }){
   const [username,setUsername]=useState('')
@@ -70,11 +71,14 @@ export default function Login({ onLogin }){
           data.access_token ??
           data.token ??
           null
+        const refreshToken =
+          data.result?.DATA?.refresh_token ??
+          data.result?.DATA?.REFRESH_TOKEN ??
+          data.result?.refresh_token ??
+          data.refresh_token ??
+          null
         console.log('Extracted token:', token)
-        if (token) {
-          localStorage.setItem('accessToken', token)
-        }
-        localStorage.setItem('loggedIn', 'true')
+        saveTokens({ accessToken: token, refreshToken })
         navigate('/my/vehicle-registration', { replace: true })
       } else {
         const errorMsg = data.result?.MESSAGE || data.message || data.error?.data?.message || data.error?.message || data.error || 'Login failed. Please check your credentials.';

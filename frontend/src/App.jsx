@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react'
-import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom'
+import { Routes, Route, useLocation, useNavigate } from 'react-router-dom'
 import Login from './pages/Login'
 import VehicleRegistration from './pages/VehicleRegistration'
+import { logoutApi, setLogoutCallback } from './utils/authApi'
 
-export default function App(){
+export default function App() {
   const [loggedIn, setLoggedIn] = useState(() => localStorage.getItem('loggedIn') === 'true')
   const location = useLocation()
   const navigate = useNavigate()
@@ -12,15 +13,23 @@ export default function App(){
     setLoggedIn(localStorage.getItem('loggedIn') === 'true')
   }, [location.pathname])
 
-  function handleLogin() {
+  // Đăng ký callback để authApi có thể force-logout khi refresh token hết hạn
+  useEffect(() => {
+    setLogoutCallback(() => {
+      setLoggedIn(false)
+      navigate('/', { replace: true })
+    })
+  }, [navigate])
+
+  async function handleLogin() {
     localStorage.setItem('loggedIn', 'true')
     setLoggedIn(true)
   }
 
-  function handleLogout() {
-    localStorage.removeItem('loggedIn')
+  async function handleLogout() {
+    await logoutApi()   // revoke refresh token trên server, xóa token local
     setLoggedIn(false)
-    navigate('/')
+    navigate('/', { replace: true })
   }
 
   return (
@@ -35,8 +44,8 @@ export default function App(){
         </nav>
       </header>
       <Routes>
-        <Route path="/" element={<Login onLogin={handleLogin}/>} />
-        <Route path="/my/vehicle-registration" element={<VehicleRegistration/>} />
+        <Route path="/" element={<Login onLogin={handleLogin} />} />
+        <Route path="/my/vehicle-registration" element={<VehicleRegistration />} />
       </Routes>
     </>
   )
