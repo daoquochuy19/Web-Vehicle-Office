@@ -28,6 +28,8 @@ export function useMasterData() {
   const [registrationTypeOptions, setRegistrationTypeOptions] = useState([])
   const [vehicleTypeOptions, setVehicleTypeOptions] = useState([])
   const [feeConfigOptions, setFeeConfigOptions] = useState([])
+  const [contractApartments, setContractApartments] = useState([])
+  const [buidingHouse, setBuildingHouse] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -78,11 +80,22 @@ export function useMasterData() {
                 depth: 0,
               },
               {
-                key: 'contract',
+                key: 'contract_apartments',
                 model: 'contract.appartment',
                 fields: ['id', 'name', 'partner_id', 'premises_line_ids'],
                 domain: [
-                  ['state', '=', 'active'],,
+                  ['state', '=', 'active'],
+                ],
+                limit: 200,
+                offset: 0,
+                order: 'name asc',
+                depth: 0,
+              },
+              {
+                key: 'building_houses',
+                model: 'building.house',
+                fields: ['id', 'name'],
+                domain: [
                 ],
                 limit: 200,
                 offset: 0,
@@ -111,6 +124,8 @@ export function useMasterData() {
         const result = data.result?.DATA || {}
 
         setLandlords(result.partners ?? [])
+        setBuildingHouse(result.building_houses ?? [])
+        setContractApartments(result.contract_apartments ?? [])
 
         // Dùng data từ API, fallback về hardcode nếu rỗng
         const apiTypePartner = result.type_partner_options ?? []
@@ -140,7 +155,9 @@ export function useMasterData() {
     registrationTypeOptions,
     vehicleTypeOptions,
     feeConfigOptions,
+    contractApartments,
     loading,
     error,
+    buidingHouse,
   }
 }

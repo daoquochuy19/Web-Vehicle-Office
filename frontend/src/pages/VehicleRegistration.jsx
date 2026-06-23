@@ -22,6 +22,8 @@ export default function VehicleRegistration() {
     registrationTypeOptions,
     vehicleTypeOptions,
     feeConfigOptions,
+    contractApartments,
+    buidingHouse,
     loading: masterLoading,
     error: masterError,
   } = useMasterData()
@@ -41,6 +43,8 @@ export default function VehicleRegistration() {
     licensePlate: '',
     effectiveDate: '',
     note: '',
+    contract: '',
+    buidingHouse: '',
   })
 
   // --- State riêng cho "cấp mới" ---
@@ -728,7 +732,12 @@ export default function VehicleRegistration() {
       </div>
       <div className="form-group">
         <label className="form-label form-label-dark">Số hợp đồng <span style={{ color: '#ef4444' }}>*</span></label>
-        <input type="text" placeholder="HD/000291" className="form-input" readOnly />
+        <select name="contract" value={formData.contract} onChange={handleChange} className="form-input" disabled={masterLoading}>
+          <option value="">{masterLoading ? 'Đang tải...' : '-- Chọn số hợp đồng --'}</option>
+          {contractApartments.map((c) => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
       </div>
     </div>
   )
@@ -738,8 +747,11 @@ export default function VehicleRegistration() {
     <div className="form-input-row">
       <div className="form-group">
         <label className="form-label form-label-dark">Mặt bằng thuê <span style={{ color: '#ef4444' }}>*</span></label>
-        <select name="premises" value={formData.premises} onChange={handleChange} className="form-input">
-          <option value="">24VP,15 (1000m2)</option>
+        <select name="premises" value={formData.buidingHouse} onChange={handleChange} className="form-input">
+          <option value="">{masterLoading ? 'Đang tải...' : '-- Chọn mặt bằng --'}</option>
+          {buidingHouse.map((c) => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
         </select>
       </div>
       <div className="form-group">
@@ -1359,20 +1371,28 @@ export default function VehicleRegistration() {
                   <div>
                     <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Tên công ty <span style={{ color: 'red' }}>(*)</span></label>
                     <select name="company" value={formData.company} onChange={handleChange} style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb' }}>
-                      <option value="">Nhập tên công ty</option>
+                      <option value="">-- Chọn công ty --</option>
                       {landlords.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                     </select>
                   </div>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Số hợp đồng <span style={{ color: 'red' }}>(*)</span></label>
-                    <input type="text" placeholder="Nhập số hợp đồng" style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb' }} />
+                    <select name="contract" value={formData.contract} onChange={handleChange} style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb' }}>
+                      <option value="">-- Chọn số hợp đồng --</option>
+                      {contractApartments.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
                   </div>
                 </div>
 
                 <div style={{ display: 'flex', gap: '24px', marginBottom: '24px' }}>
                   <div style={{ flex: 1 }}>
                     <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Mặt bằng thuê <span style={{ color: 'red' }}>(*)</span></label>
-                    <input type="text" value={formData.premises || '24VP.15 (1000m2)'} readOnly style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb', color: '#9ca3af' }} />
+                    <select name="contract" value={formData.contract} onChange={handleChange} style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb' }}>
+                      <option value="">{masterLoading ? 'Đang tải...' : '-- Chọn mặt bằng --'}</option>
+                      {buidingHouse.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>                      
 
                     <div style={{ marginTop: '16px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
