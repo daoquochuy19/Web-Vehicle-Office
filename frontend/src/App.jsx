@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { Routes, Route, useLocation, useNavigate } from 'react-router-dom'
 import Login from './pages/Login'
+import Menu from './pages/Menu'
 import VehicleRegistration from './pages/VehicleRegistration'
 import { logoutApi, setLogoutCallback } from './utils/authApi'
 
@@ -45,6 +46,7 @@ export default function App() {
       </header>
       <Routes>
         <Route path="/" element={<Login onLogin={handleLogin} />} />
+        <Route path="/my/menu" element={<Menu />} />
         <Route path="/my/vehicle-registration" element={<VehicleRegistration />} />
       </Routes>
     </>

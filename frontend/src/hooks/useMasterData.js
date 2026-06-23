@@ -1,6 +1,22 @@
 import { useState, useEffect } from 'react'
 import { authFetch } from '../utils/authApi'
 
+// Fallback khi API không trả về selections (Odoo selection fields tĩnh)
+const FALLBACK_REGISTRATION_TYPE_OPTIONS = [
+  { value: 'create', label: 'Cấp mới' },
+  { value: 'change_plate', label: 'Đổi biển kiểm soát' },
+  { value: 'lock_card', label: 'Khóa thẻ' },
+  { value: 'unlock_card', label: 'Mở khóa thẻ' },
+  { value: 'return_card', label: 'Trả thẻ' },
+  { value: 'damaged_reissue', label: 'Hỏng thẻ cấp lại' },
+  { value: 'lost_reissue', label: 'Mất thẻ cấp lại' },
+]
+
+const FALLBACK_TYPE_PARTNER_OPTIONS = [
+  { value: 'office', label: 'Văn phòng' },
+  { value: 'resident', label: 'Cư dân' },
+]
+
 /**
  * Shared hook để fetch master data dùng chung giữa các form đăng ký xe.
  * Trả về: partners, typePartnerOptions, registrationTypeOptions, vehicleTypeOptions,
@@ -32,7 +48,7 @@ export function useMasterData() {
                 key: 'partners',
                 model: 'res.partner',
                 fields: ['id', 'name'],
-                domain: [],
+                domain: [["is_customer", "=", true]],
                 limit: 100,
                 offset: 0,
                 order: 'name asc',
@@ -61,6 +77,18 @@ export function useMasterData() {
                 order: 'name asc',
                 depth: 0,
               },
+              {
+                key: 'contract',
+                model: 'contract.appartment',
+                fields: ['id', 'name', 'partner_id', 'premises_line_ids'],
+                domain: [
+                  ['state', '=', 'active'],,
+                ],
+                limit: 200,
+                offset: 0,
+                order: 'name asc',
+                depth: 0,
+              },
             ],
             selections: [
               {
@@ -78,17 +106,27 @@ export function useMasterData() {
         })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const data = await res.json()
-        console.log('[useMasterData batch response]', data)
+        console.log('trạng thái call:', data)
 
         const result = data.result?.DATA || {}
+
         setLandlords(result.partners ?? [])
-        setTypePartnerOptions(result.type_partner_options ?? [])
-        setRegistrationTypeOptions(result.registration_type_options ?? [])
+
+        // Dùng data từ API, fallback về hardcode nếu rỗng
+        const apiTypePartner = result.type_partner_options ?? []
+        setTypePartnerOptions(apiTypePartner.length > 0 ? apiTypePartner : FALLBACK_TYPE_PARTNER_OPTIONS)
+
+        const apiRegType = result.registration_type_options ?? []
+        setRegistrationTypeOptions(apiRegType.length > 0 ? apiRegType : FALLBACK_REGISTRATION_TYPE_OPTIONS)
+
         setVehicleTypeOptions(result.vehicle_types ?? [])
         setFeeConfigOptions(result.fee_configs ?? [])
       } catch (err) {
         console.error('Fetch master data error:', err)
         setError('Không thể tải cấu hình dữ liệu')
+        // Fallback khi lỗi hoàn toàn
+        setRegistrationTypeOptions(FALLBACK_REGISTRATION_TYPE_OPTIONS)
+        setTypePartnerOptions(FALLBACK_TYPE_PARTNER_OPTIONS)
       } finally {
         setLoading(false)
       }

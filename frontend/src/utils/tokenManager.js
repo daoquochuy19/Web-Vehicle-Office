@@ -60,7 +60,6 @@ export function isAccessTokenValid() {
   if (!token) return false
   const payload = decodeJwtPayload(token)
   if (!payload?.exp) return false
-  // Buffer 30 giây để tránh race condition
   return payload.exp * 1000 > Date.now() + 30_000
 }
 

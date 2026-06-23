@@ -25,7 +25,6 @@ export default function Login({ onLogin }){
         login: username,
         password: password,
       }
-      console.log('Login payload', payload)
       // Dùng Vite Proxy (tương đương Nginx trên Production) để bypass CORS mà vẫn giữ nguyên Custom Header
       const res = await fetch('/api/v1/auth/login', {
         method: 'POST',
@@ -44,7 +43,6 @@ export default function Login({ onLogin }){
         data = { message: 'Invalid response' }
       }
       
-      console.log('Login response', { status: res.status, data })
       setLoading(false)
 
       const isSuccess = res.ok && !data.error && (
@@ -57,10 +55,6 @@ export default function Login({ onLogin }){
         if (onLogin) {
           onLogin()
         }
-        console.log('Login successful', data)
-        // Log toàn bộ data.result để xác định field token
-        console.log('Login result fields:', JSON.stringify(data.result))
-        // Token nằm trong data.result.DATA.access_token
         const token =
           data.result?.DATA?.access_token ??
           data.result?.DATA?.ACCESS_TOKEN ??
@@ -77,15 +71,13 @@ export default function Login({ onLogin }){
           data.result?.refresh_token ??
           data.refresh_token ??
           null
-        console.log('Extracted token:', token)
         saveTokens({ accessToken: token, refreshToken })
-        navigate('/my/vehicle-registration', { replace: true })
+        navigate('/my/menu', { replace: true })
       } else {
         const errorMsg = data.result?.MESSAGE || data.message || data.error?.data?.message || data.error?.message || data.error || 'Login failed. Please check your credentials.';
         setError(typeof errorMsg === 'string' ? errorMsg : 'Login failed. Please check your credentials.')
       }
     } catch (err) {
-      console.error('Login error', err)
       setLoading(false)
       setError('Unable to reach Odoo server. Please check your connection.')
     }

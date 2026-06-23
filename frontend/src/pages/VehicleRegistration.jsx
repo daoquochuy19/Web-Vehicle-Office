@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { useMasterData } from '../hooks/useMasterData'
 import FilePreviewModal from '../components/FilePreviewModal'
 import { authFetch } from '../utils/authApi'
+import * as XLSX from 'xlsx'
+
 
 // Giá trị registrationType từ Odoo selection
 const REGISTRATION_TYPE_CHANGE_PLATE = 'change_plate'
@@ -43,6 +45,7 @@ export default function VehicleRegistration() {
 
   // --- State riêng cho "cấp mới" ---
   const [requiredDocs, setRequiredDocs] = useState([])
+  const [docsLoading, setDocsLoading] = useState(false)
   const [docFileNames, setDocFileNames] = useState({})
   const [docFiles, setDocFiles] = useState({})
   const [docAttachmentIds, setDocAttachmentIds] = useState({})
@@ -62,6 +65,13 @@ export default function VehicleRegistration() {
   const [reissueUsageDate, setReissueUsageDate] = useState('') // ngày đăng ký sử dụng
   const [reissueFeeChecked, setReissueFeeChecked] = useState(false)
   const [reissueFeePayment, setReissueFeePayment] = useState('')
+
+  // --- State riêng cho Upload Excel ---
+  const [activeTab, setActiveTab] = useState('upload')
+  const [excelFile, setExcelFile] = useState(null)
+  const [excelFileName, setExcelFileName] = useState('')
+  const [parsedData, setParsedData] = useState([])
+  const [filterType, setFilterType] = useState('invalid')
 
   const isChangePlate = formData.registrationType === REGISTRATION_TYPE_CHANGE_PLATE
   const isLockCard = formData.registrationType === REGISTRATION_TYPE_LOCK_CARD
@@ -115,7 +125,6 @@ export default function VehicleRegistration() {
         const data = await res.json()
         setOldPlateOptions(data.result?.DATA?.active_plates ?? [])
       } catch (err) {
-        console.error('Fetch active plates error:', err)
         setOldPlateOptions([])
       } finally {
         setOldPlateLoading(false)
@@ -126,13 +135,23 @@ export default function VehicleRegistration() {
 
   // Fetch tài liệu yêu cầu (chỉ dùng cho cấp mới)
   const fetchRequiredDocuments = async (data) => {
-    if (!data.typePartner || !data.registrationType || !data.vehicleType) {
+    if (!data.registrationType) {
       setRequiredDocs([])
       setDocFileNames({})
       setDocFiles({})
       setDocAttachmentIds({})
+      setDocsLoading(false)
       return
     }
+
+    const conditions = {
+      type_partner: data.typePartner || 'office',
+      registration_type: data.registrationType,
+      is_vip: false,
+      is_not_owner: false,
+      ...(data.vehicleType ? { vehicle_type_id: Number(data.vehicleType) } : {}),
+    }
+    setDocsLoading(true)
     try {
       const res = await authFetch('/api/v1/rpc/vehicle.card.register/get_required_documents', {
         method: 'POST',
@@ -143,19 +162,16 @@ export default function VehicleRegistration() {
         credentials: 'include',
         body: JSON.stringify({
           args: [],
-          kwargs: {
-            conditions: {
-              type_partner: data.typePartner,
-              registration_type: data.registrationType,
-              is_vip: false,
-              is_not_owner: false,
-              vehicle_type_id: Number(data.vehicleType),
-            },
-          },
+          kwargs: { conditions },
         }),
       })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      if (!res.ok) {
+        const errorBody = await res.text()
+        console.error('get_required_documents failed', res.status, errorBody)
+        throw new Error(`HTTP ${res.status}`)
+      }
       const response = await res.json()
+      console.debug('get_required_documents response', response)
       const result = response.result?.DATA || response.DATA || []
       setRequiredDocs(result)
       setDocFileNames({})
@@ -164,8 +180,22 @@ export default function VehicleRegistration() {
     } catch (err) {
       console.error('Fetch required documents error:', err)
       setRequiredDocs([])
+    } finally {
+      setDocsLoading(false)
     }
   }
+
+  const handleDownloadTemplate = (e) => {
+    e.preventDefault();
+    const ws_data = [
+      ['STT', 'Tên nhân viên', 'Số điện thoại', 'Biển kiểm soát', 'Loại xe', 'Hãng xe', 'Loại sở hữu', 'Hình thức thanh toán'],
+      [1, 'Nguyễn Văn A', '0981524563', '29A-12345', 'Ô tô', 'Toyota', 'Chính chủ', 'Thanh toán chung']
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(ws_data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template");
+    XLSX.writeFile(wb, "Template_CapMoi.xlsx");
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -180,13 +210,115 @@ export default function VehicleRegistration() {
         REGISTRATION_TYPE_DAMAGED_REISSUE,
         REGISTRATION_TYPE_LOST_REISSUE,
       ]
-      if (!noDocsModes.includes(next.registrationType)) {
+      const isNoDocsMode = noDocsModes.includes(next.registrationType)
+      const hasRegistrationType = Boolean(next.registrationType)
+      if (hasRegistrationType && !isNoDocsMode) {
+        // Chỉ gọi API khi đã chọn hình thức và không phải mode không cần tài liệu
         fetchRequiredDocuments(next)
       } else {
         setRequiredDocs([])
       }
     }
   }
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.size > 50 * 1024 * 1024) {
+      alert("Kích thước file vượt quá 50MB");
+      return;
+    }
+
+    setExcelFile(file);
+    setExcelFileName(file.name);
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const bstr = evt.target.result;
+      const wb = XLSX.read(bstr, { type: 'binary' });
+      const wsname = wb.SheetNames[0];
+      const ws = wb.Sheets[wsname];
+      const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+
+      if (data.length === 0) {
+        alert("File không có dữ liệu");
+        return;
+      }
+
+      const headers = data[0].map(h => typeof h === 'string' ? h.trim() : h);
+      const expectedHeaders = ['STT', 'Tên nhân viên', 'Số điện thoại', 'Biển kiểm soát', 'Loại xe', 'Hãng xe', 'Loại sở hữu', 'Hình thức thanh toán'];
+      
+      const isFormatValid = expectedHeaders.every((h, i) => headers[i] === h);
+      if (!isFormatValid) {
+        alert("Định dạng file không đúng với file mẫu. Vui lòng tải file mẫu và thử lại.");
+        return;
+      }
+
+      const rows = [];
+      const licensePlates = new Set();
+
+      for (let i = 1; i < data.length; i++) {
+        const row = data[i];
+        if (!row || row.length === 0) continue;
+
+        if (!row[1] && !row[2] && !row[3] && !row[4] && !row[5] && !row[6] && !row[7]) continue;
+
+        const record = {
+          stt: row[0] || i,
+          name: row[1] || '',
+          phone: row[2] || '',
+          licensePlate: row[3] || '',
+          vehicleType: row[4] || '',
+          brand: row[5] || '',
+          ownership: row[6] || '',
+          paymentMethod: row[7] || '',
+          isValid: true,
+          errors: []
+        };
+
+        if (!record.name) {
+          record.isValid = false;
+          record.errors.push('Thiếu "Tên nhân viên"');
+        }
+        if (!record.licensePlate) {
+          record.isValid = false;
+          record.errors.push('Thiếu "Biển kiểm soát"');
+        } else {
+          if (licensePlates.has(record.licensePlate)) {
+            record.isValid = false;
+            record.errors.push('Biển kiểm soát đã tồn tại');
+          } else {
+            licensePlates.add(record.licensePlate);
+          }
+        }
+        if (!record.vehicleType) {
+          record.isValid = false;
+          record.errors.push('Thiếu "Loại xe"');
+        }
+        if (!record.paymentMethod) {
+          record.isValid = false;
+          record.errors.push('Thiếu "Hình thức thanh toán"');
+        }
+
+        rows.push(record);
+      }
+
+      setParsedData(rows);
+      setActiveTab('check');
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const validCount = parsedData.filter(d => d.isValid).length;
+  const invalidCount = parsedData.filter(d => !d.isValid).length;
+
+  const displayedData = parsedData.filter(d => {
+    if (filterType === 'all') return true;
+    if (filterType === 'valid') return d.isValid;
+    if (filterType === 'invalid') return !d.isValid;
+    return true;
+  });
 
   const handleOldPlateChange = (e) => {
     const value = e.target.value
@@ -210,9 +342,18 @@ export default function VehicleRegistration() {
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
-      return data.result?.DATA?.attachments?.[0]?.id || data.result?.DATA?.id || null
+      console.log('Upload document response:', data)
+      const attachmentId = 
+        data.result?.DATA?.attachments?.[0]?.id ||
+        data.result?.DATA?.attachment_id ||
+        data.result?.attachments?.[0]?.id ||
+        data.result?.attachment_id ||
+        data.result?.id ||
+        data.attachment_id ||
+        data.id ||
+        null
+      return attachmentId
     } catch (err) {
-      console.error('Upload document error:', err)
       alert('Tải tài liệu lên thất bại')
       return null
     }
@@ -257,7 +398,8 @@ export default function VehicleRegistration() {
 
     const lineDocumentIds = requiredDocs.map((doc, index) => {
       const documentId = doc.document_parking_card_id ?? doc.id ?? doc.code ?? index
-      const attachmentKey = String(doc.id ?? doc.code ?? index)
+      // attachmentKey phải khớp với docId được dùng khi render (upload file)
+      const attachmentKey = String(doc.document_parking_card_id ?? doc.id ?? doc.code ?? index)
       const attachmentId = docAttachmentIds[attachmentKey]
       return [0, 0, {
         document_parking_card_id: Number(documentId),
@@ -298,10 +440,8 @@ export default function VehicleRegistration() {
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
-      console.log('[create registration response]', data)
       alert('Phiếu đăng ký đã được tạo thành công')
     } catch (err) {
-      console.error('Create registration error:', err)
       alert('Tạo phiếu đăng ký thất bại')
     }
   }
@@ -343,10 +483,8 @@ export default function VehicleRegistration() {
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
-      console.log('[change license plate response]', data)
       alert('Phiếu đổi biển kiểm soát đã được tạo thành công')
     } catch (err) {
-      console.error('Change license plate error:', err)
       alert('Tạo phiếu đổi biển thất bại')
     }
   }
@@ -387,10 +525,8 @@ export default function VehicleRegistration() {
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
-      console.log('[lock card response]', data)
       alert('Phiếu khóa thẻ đã được tạo thành công')
     } catch (err) {
-      console.error('Lock card error:', err)
       alert('Tạo phiếu khóa thẻ thất bại')
     }
   }
@@ -431,10 +567,8 @@ export default function VehicleRegistration() {
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
-      console.log('[unlock card response]', data)
       alert('Phiếu mở khóa thẻ đã được tạo thành công')
     } catch (err) {
-      console.error('Unlock card error:', err)
       alert('Tạo phiếu mở khóa thẻ thất bại')
     }
   }
@@ -475,10 +609,8 @@ export default function VehicleRegistration() {
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
-      console.log('[return card response]', data)
       alert('Phiếu trả thẻ đã được tạo thành công')
     } catch (err) {
-      console.error('Return card error:', err)
       alert('Tạo phiếu trả thẻ thất bại')
     }
   }
@@ -521,10 +653,8 @@ export default function VehicleRegistration() {
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
-      console.log('[damaged reissue response]', data)
       alert('Phiếu hỏng thẻ cấp lại đã được tạo thành công')
     } catch (err) {
-      console.error('Damaged reissue error:', err)
       alert('Tạo phiếu hỏng thẻ cấp lại thất bại')
     }
   }
@@ -547,10 +677,8 @@ export default function VehicleRegistration() {
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
-      console.log('[lost reissue response]', data)
       alert('Phiếu mất thẻ cấp lại đã được tạo thành công')
     } catch (err) {
-      console.error('Lost reissue error:', err)
       alert('Tạo phiếu mất thẻ cấp lại thất bại')
     }
   }
@@ -563,18 +691,22 @@ export default function VehicleRegistration() {
           <label className="form-label form-label-dark">Đối tượng đăng ký <span style={{ color: '#ef4444' }}>*</span></label>
           <select name="typePartner" value={formData.typePartner} onChange={handleChange} className="form-input">
             <option value="">-- Chọn đối tượng đăng ký --</option>
-            {typePartnerOptions.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
+            {typePartnerOptions.map((o) => {
+              const val = o.value || o[0];
+              const lbl = o.label || o[1];
+              return <option key={val} value={val}>{lbl}</option>;
+            })}
           </select>
         </div>
         <div className="form-group">
           <label className="form-label form-label-dark">Hình thức đăng ký <span style={{ color: '#ef4444' }}>*</span></label>
           <select name="registrationType" value={formData.registrationType} onChange={handleChange} className="form-input">
             <option value="">-- Chọn hình thức đăng ký --</option>
-            {registrationTypeOptions.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
+            {registrationTypeOptions.map((o) => {
+              const val = o.value || o[0];
+              const lbl = o.label || o[1];
+              return <option key={val} value={val}>{lbl}</option>;
+            })}
           </select>
         </div>
       </div>
@@ -672,8 +804,8 @@ export default function VehicleRegistration() {
   // ─── Shared: Action buttons ──────────────────────────────────────────────────
   const renderActions = () => (
     <div className="form-actions-bottom" style={{ marginTop: 40, paddingTop: 20, borderTop: '1px solid #e2e8f0', display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-      <button type="button" onClick={() => navigate('/')} className="secondary-button" style={{ width: 'auto', paddingLeft: 24, paddingRight: 24 }}>
-        <i className="fa-solid fa-ban"></i> Đóng
+      <button type="button" onClick={() => navigate('/my/menu')} className="secondary-button" style={{ width: 'auto', paddingLeft: 24, paddingRight: 24 }}>
+        <i className="fa-solid fa-arrow-left"></i> Về menu
       </button>
       <button type="submit" className="action-button" style={{ width: 'auto', paddingLeft: 24, paddingRight: 24 }}>
         <i className="fa-solid fa-floppy-disk"></i> Lưu
@@ -968,7 +1100,12 @@ export default function VehicleRegistration() {
     <>
       <main className="page-shell vehicle-registration-shell-no-bg">
         <section className="registration-form-container">
-          <h2>Thông tin phiếu đăng ký</h2>
+          <div className="page-header">
+            <button className="back-button" onClick={() => navigate('/my/menu')}>
+              <i className="fa-solid fa-arrow-left"></i>
+            </button>
+            <h2>Thông tin phiếu đăng ký</h2>
+          </div>
 
           {/* ── LAYOUT: đổi biển → đơn cột, cấp mới → 2 cột ── */}
           {isChangePlate ? (
@@ -1196,122 +1333,313 @@ export default function VehicleRegistration() {
 
           ) : (
 
-            /* ════════════ VIEW CẤP MỚI ════════════ */
-            <div className="form-layout-2col">
-              <div className="form-left">
-                <form onSubmit={handleSubmitNew} className="vehicle-registration-form">
-                  {renderTopRows()}
-                  {renderCompanyRow()}
-                  {renderPremisesVehicleRow()}
-                  {renderUserRow()}
-
-                  {/* Biển kiểm soát + Biển số khác + Không chính chủ */}
-                  <div className="form-input-row">
-                    <div className="form-group">
-                      <label className="form-label form-label-dark">Biển kiểm soát <span style={{ color: '#ef4444' }}>*</span></label>
-                      <input type="text" name="licensePlate" value={formData.licensePlate} onChange={handleChange} placeholder="-Chọn-" className="form-input" />
-                    </div>
-                    <div className="form-group" style={{ justifyContent: 'flex-end', gap: '12px' }}>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: 0 }}>
-                        <input type="checkbox" style={{ width: '16px', height: '16px' }} />
-                        <span className="form-label form-label-dark" style={{ margin: 0 }}>Biển số khác</span>
-                      </label>
-                      <label htmlFor="ownershipType" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                        <input
-                          id="ownershipType"
-                          type="checkbox"
-                          checked={formData.ownershipType}
-                          onChange={(e) => setFormData((prev) => ({ ...prev, ownershipType: e.target.checked }))}
-                          style={{ width: '16px', height: '16px' }}
-                        />
-                        <span className="form-label form-label-dark" style={{ margin: 0 }}>Không chính chủ</span>
-                      </label>
-                    </div>
-                  </div>
-
-                  {renderFeePaymentRow()}
-                  {renderEffectiveDateRow()}
-
-                  {/* Tài liệu yêu cầu */}
-                  <div style={{ marginTop: 32, borderTop: '1px solid #e2e8f0', paddingTop: 20 }}>
-                    {requiredDocs.length === 0 ? (
-                      <p style={{ color: '#64748b', fontSize: '0.95rem' }}>Chọn đầy đủ Đối tượng đăng ký, Hình thức đăng ký và Loại xe để hiển thị danh sách tài liệu cần tải lên.</p>
-                    ) : requiredDocs.map((doc, index) => {
-                      const docId = String(doc.id ?? doc.code ?? index)
-                      return (
-                        <div key={docId} className="file-upload-row" style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-                          <label className="file-label" style={{ minWidth: '120px' }}>{doc.name || doc.display_name || doc.code || `Tài liệu ${index + 1}`}</label>
-                          {!docFileNames[docId] && (
-                            <label htmlFor={`required-doc-${docId}`} className="file-upload-btn">
-                              <i className="fa-solid fa-upload" style={{ marginRight: '6px' }} /> Tải lên
-                            </label>
-                          )}
-                          <input id={`required-doc-${docId}`} type="file" onChange={(e) => handleRequiredDocFileChange(e, docId)} style={{ display: 'none' }} />
-                          {docFileNames[docId] && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span style={{ fontSize: '0.9rem', color: '#0f172a' }}>
-                                <i className="fa-solid fa-file" style={{ marginRight: '4px' }} />{docFileNames[docId]}
-                              </span>
-                              {docFiles[docId] && canPreview(docFiles[docId].type) && (
-                                <button type="button" onClick={() => openPreview(docFiles[docId])}
-                                  style={{ padding: '4px 8px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem' }}>
-                                  <i className="fa-solid fa-eye" style={{ marginRight: '4px' }} /> Xem
-                                </button>
-                              )}
-                              <button type="button"
-                                onClick={() => {
-                                  setDocFileNames((prev) => ({ ...prev, [docId]: '' }))
-                                  setDocFiles((prev) => ({ ...prev, [docId]: null }))
-                                  setDocAttachmentIds((prev) => ({ ...prev, [docId]: null }))
-                                }}
-                                style={{ padding: '4px 8px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem' }}>
-                                <i className="fa-solid fa-trash" style={{ marginRight: '4px' }} /> Xóa
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-
-                  {renderActions()}
-                </form>
+            /* ════════════ VIEW CẤP MỚI / BULK UPLOAD ════════════ */
+            <div style={{ backgroundColor: '#fff', borderRadius: '8px', width: '100%', maxWidth: '1200px', margin: '0 auto', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', overflow: 'hidden', height: 'fit-content' }}>
+              <div style={{ backgroundColor: '#f3f4f6', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 'bold', color: '#374151' }}>Nhập từ file Excel</h2>
               </div>
 
-              {/* Cột phải: Thông tin định mức */}
-              <div className="form-right">
-                <div style={{ marginBottom: 20 }}>
-                  <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: '#22c55e' }}>Thông tin định mức</h3>
-                </div>
-                <div className="quota-table">
-                  <div className="quota-header" style={{ background: '#ef4444', color: '#fff' }}>
-                    <div className="quota-cell">24VP,15 (1000m2)</div>
+              <div style={{ padding: '24px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Hình thức đăng ký <span style={{ color: 'red' }}>(*)</span></label>
+                    <select name="registrationType" value={formData.registrationType} onChange={handleChange} style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb' }}>
+                      <option value="">-- Chọn hình thức đăng ký --</option>
+                      {registrationTypeOptions.map(opt => {
+                        const val = opt.value || opt[0];
+                        const lbl = opt.label || opt[1];
+                        return <option key={val} value={val}>{lbl}</option>;
+                      })}
+                    </select>
                   </div>
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead>
-                      <tr style={{ background: '#f3f4f6', borderBottom: '1px solid #e5e7eb' }}>
-                        <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 600, fontSize: '0.9rem', color: '#0f172a' }}>Định mức</th>
-                        <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 600, fontSize: '0.9rem', color: '#0f172a' }}>Thực tế</th>
-                        <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 600, fontSize: '0.9rem', color: '#0f172a' }}>Ngoài định mức</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                        <td style={{ padding: '12px 16px', color: '#0f172a' }}>Ô tô</td>
-                        <td style={{ padding: '12px 16px', textAlign: 'center', color: '#0f172a' }}>100</td>
-                        <td style={{ padding: '12px 16px', textAlign: 'center', color: '#0f172a' }}>55</td>
-                      </tr>
-                      <tr>
-                        <td style={{ padding: '12px 16px', color: '#0f172a' }}>Xe máy</td>
-                        <td style={{ padding: '12px 16px', textAlign: 'center', color: '#0f172a' }}>75</td>
-                        <td style={{ padding: '12px 16px', textAlign: 'center', color: '#0f172a' }}>30</td>
-                      </tr>
-                    </tbody>
-                  </table>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Ngày đăng ký sử dụng <span style={{ color: 'red' }}>(*)</span></label>
+                    <input type="date" name="effectiveDate" value={formData.effectiveDate} onChange={handleChange} style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Tên công ty <span style={{ color: 'red' }}>(*)</span></label>
+                    <select name="company" value={formData.company} onChange={handleChange} style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb' }}>
+                      <option value="">Nhập tên công ty</option>
+                      {landlords.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Số hợp đồng <span style={{ color: 'red' }}>(*)</span></label>
+                    <input type="text" placeholder="Nhập số hợp đồng" style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb' }} />
+                  </div>
                 </div>
-                <div style={{ marginTop: 28 }}>
-                  <label className="form-label form-label-dark">Ghi chú</label>
-                  <textarea placeholder="Nhập ghi chú" className="form-textarea" rows={6} style={{ minHeight: '140px' }} />
+
+                <div style={{ display: 'flex', gap: '24px', marginBottom: '24px' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Mặt bằng thuê <span style={{ color: 'red' }}>(*)</span></label>
+                    <input type="text" value={formData.premises || '24VP.15 (1000m2)'} readOnly style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb', color: '#9ca3af' }} />
+
+                    <div style={{ marginTop: '16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                        <i className="fa-solid fa-paperclip" style={{ color: '#4b5563' }}></i>
+                        <span style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#374151' }}>Tài liệu đính kèm</span>
+                      </div>
+                      
+                      {docsLoading ? (
+                        <p style={{ color: '#3b82f6', fontSize: '0.875rem', fontStyle: 'italic', margin: 0 }}>
+                          ⏳ Đang tải danh sách tài liệu...
+                        </p>
+                      ) : requiredDocs.length === 0 ? (
+                        <p style={{ color: '#6b7280', fontSize: '0.875rem', fontStyle: 'italic', margin: 0 }}>
+                          {formData.registrationType
+                            ? 'Không có tài liệu yêu cầu cho hình thức này.'
+                            : 'Vui lòng chọn Hình thức đăng ký để xem danh sách tài liệu.'}
+                        </p>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                          {requiredDocs.map((doc, index) => {
+                            // ưu tiên document_parking_card_id (field thực tế API trả về)
+                            const docId = String(doc.document_parking_card_id ?? doc.id ?? doc.code ?? index)
+                            return (
+                              <div key={docId} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <span style={{ fontSize: '0.875rem', color: '#4b5563', flex: 1 }}>{doc.name || doc.display_name || doc.code}</span>
+                                {!docFileNames[docId] ? (
+                                  <label style={{ padding: '6px 12px', border: '1px dashed #3b82f6', borderRadius: '4px', color: '#3b82f6', cursor: 'pointer', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <i className="fa-solid fa-upload"></i> Tải lên
+                                    <input type="file" onChange={(e) => handleRequiredDocFileChange(e, docId)} style={{ display: 'none' }} />
+                                  </label>
+                                ) : (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span style={{ fontSize: '0.875rem', color: '#10b981', maxWidth: '150px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      <i className="fa-solid fa-check"></i> {docFileNames[docId]}
+                                    </span>
+                                    <button type="button" onClick={() => {
+                                      setDocFileNames(prev => ({ ...prev, [docId]: '' }))
+                                      setDocFiles(prev => ({ ...prev, [docId]: null }))
+                                    }} style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', padding: '4px' }}>
+                                      <i className="fa-solid fa-trash"></i>
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ flex: 1 }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', color: '#111827' }}>
+                      <thead>
+                        <tr style={{ background: '#e5e7eb' }}>
+                          <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid #d1d5db' }}></th>
+                          <th style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #d1d5db' }}>Định mức</th>
+                          <th style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #d1d5db' }}>Thực tế</th>
+                          <th style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #d1d5db' }}>Ngoài định mức</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td style={{ padding: '8px', borderBottom: '1px solid #d1d5db' }}>Ô tô</td>
+                          <td style={{ padding: '8px', textAlign: 'center', fontWeight: 'bold', borderBottom: '1px solid #d1d5db' }}>100</td>
+                          <td style={{ padding: '8px', textAlign: 'center', fontWeight: 'bold', borderBottom: '1px solid #d1d5db' }}>55</td>
+                          <td style={{ padding: '8px', textAlign: 'center', fontWeight: 'bold', borderBottom: '1px solid #d1d5db' }}>0</td>
+                        </tr>
+                        <tr>
+                          <td style={{ padding: '8px', borderBottom: '1px solid #d1d5db' }}>Xe máy</td>
+                          <td style={{ padding: '8px', textAlign: 'center', fontWeight: 'bold', borderBottom: '1px solid #d1d5db' }}>75</td>
+                          <td style={{ padding: '8px', textAlign: 'center', fontWeight: 'bold', borderBottom: '1px solid #d1d5db' }}>30</td>
+                          <td style={{ padding: '8px', textAlign: 'center', fontWeight: 'bold', borderBottom: '1px solid #d1d5db' }}>30</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div style={{ borderBottom: '1px solid #d1d5db', display: 'flex', gap: '8px', marginBottom: '24px' }}>
+                  <button
+                    onClick={() => setActiveTab('upload')}
+                    style={{
+                      padding: '12px 24px',
+                      border: '1px solid #d1d5db',
+                      borderBottom: activeTab === 'upload' ? 'none' : '1px solid #d1d5db',
+                      background: activeTab === 'upload' ? '#fff' : '#f9fafb',
+                      color: activeTab === 'upload' ? '#10b981' : '#4b5563',
+                      marginBottom: '-1px',
+                      borderRadius: '4px 4px 0 0',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      fontWeight: activeTab === 'upload' ? 'bold' : 'normal'
+                    }}
+                  >
+                    <i className="fa-solid fa-file-import"></i> Chọn tệp nguồn
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('check')}
+                    style={{
+                      padding: '12px 24px',
+                      border: '1px solid #d1d5db',
+                      borderBottom: activeTab === 'check' ? 'none' : '1px solid #d1d5db',
+                      background: activeTab === 'check' ? '#fff' : '#f9fafb',
+                      color: activeTab === 'check' ? '#10b981' : '#4b5563',
+                      marginBottom: '-1px',
+                      borderRadius: '4px 4px 0 0',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      fontWeight: activeTab === 'check' ? 'bold' : 'normal'
+                    }}
+                  >
+                    <i className="fa-solid fa-check"></i> Kiểm tra dữ liệu
+                  </button>
+                </div>
+
+                <div style={{ minHeight: '300px' }}>
+                  {activeTab === 'upload' ? (
+                    <div style={{ border: '1px solid #d1d5db', borderRadius: '4px', padding: '24px' }}>
+                      <h3 style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '16px', color: '#111827' }}>Nhập danh sách đăng ký cấp mới/chuyển công ty/trả thẻ</h3>
+                      <ul style={{ paddingLeft: '20px', marginBottom: '24px', color: '#4b5563', lineHeight: '1.8' }}>
+                        <li>Nhập danh sách đăng ký cấp mới/chuyển công ty/trả thẻ vào hệ thống</li>
+                        <li style={{ color: '#ef4444' }}>Lưu ý: Vui lòng tải lên file excel nhỏ hơn 50MB</li>
+                      </ul>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '32px' }}>
+                        <label style={{
+                          background: '#e11d48',
+                          color: '#fff',
+                          padding: '8px 16px',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          fontWeight: '500'
+                        }}>
+                          <i className="fa-solid fa-file-excel"></i> Chọn file
+                          <input type="file" accept=".xlsx, .xls" onChange={handleFileUpload} style={{ display: 'none' }} />
+                        </label>
+                        <div style={{ flex: 1, padding: '8px 16px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb', color: '#9ca3af' }}>
+                          {excelFileName || 'Không có file được chọn'}
+                        </div>
+                      </div>
+
+                      <div>
+                        <span style={{ color: '#111827' }}>Tải file Import mẫu <a href="#" onClick={handleDownloadTemplate} style={{ color: '#ef4444', textDecoration: 'none', fontStyle: 'italic' }}>tại đây</a></span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <h3 style={{ textAlign: 'center', color: '#10b981', margin: '0 0 24px 0', fontSize: '1.25rem', fontWeight: 'bold' }}>Kiểm tra dữ liệu nhập</h3>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                        <div style={{ display: 'flex', gap: '32px' }}>
+                          <span style={{ color: '#10b981', fontWeight: '500' }}>Dữ liệu hợp lệ: {validCount}</span>
+                          <span style={{ color: '#ef4444', fontWeight: '500' }}>Dữ liệu không hợp lệ: {invalidCount}</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                          <button style={{
+                            background: '#3b82f6',
+                            color: '#fff',
+                            border: 'none',
+                            padding: '8px 16px',
+                            borderRadius: '4px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            cursor: 'pointer'
+                          }}>
+                            <i className="fa-solid fa-file-export"></i> Xuất dữ liệu lỗi
+                          </button>
+                          <select
+                            value={filterType}
+                            onChange={(e) => setFilterType(e.target.value)}
+                            style={{
+                              padding: '8px',
+                              border: '1px solid #ef4444',
+                              borderRadius: '4px',
+                              color: '#ef4444',
+                              background: '#fff',
+                              minWidth: '200px',
+                              outline: 'none'
+                            }}
+                          >
+                            <option value="invalid">Dữ liệu không hợp lệ</option>
+                            <option value="valid">Dữ liệu hợp lệ</option>
+                            <option value="all">Tất cả</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', color: '#111827' }}>
+                          <thead>
+                            <tr style={{ background: '#e5e7eb' }}>
+                              <th style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}>STT</th>
+                              <th style={{ padding: '12px 8px', border: '1px solid #d1d5db', textAlign: 'left', color: '#374151' }}>Tên nhân viên</th>
+                              <th style={{ padding: '12px 8px', border: '1px solid #d1d5db', textAlign: 'left', color: '#374151' }}>Số điện thoại</th>
+                              <th style={{ padding: '12px 8px', border: '1px solid #d1d5db', textAlign: 'left', color: '#374151' }}>Biển kiểm soát</th>
+                              <th style={{ padding: '12px 8px', border: '1px solid #d1d5db', textAlign: 'left', color: '#374151' }}>Loại xe</th>
+                              <th style={{ padding: '12px 8px', border: '1px solid #d1d5db', textAlign: 'left', color: '#374151' }}>Hãng xe</th>
+                              <th style={{ padding: '12px 8px', border: '1px solid #d1d5db', textAlign: 'left', color: '#374151' }}>Loại sở hữu</th>
+                              <th style={{ padding: '12px 8px', border: '1px solid #d1d5db', textAlign: 'left', color: '#374151' }}>Hình thức thanh toán</th>
+                              <th style={{ padding: '12px 8px', border: '1px solid #d1d5db', textAlign: 'center', color: '#374151' }}>Mô tả lỗi</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {displayedData.length === 0 ? (
+                              <tr>
+                                <td colSpan="9" style={{ padding: '24px', textAlign: 'center', color: '#6b7280', border: '1px solid #d1d5db' }}>Không có dữ liệu</td>
+                              </tr>
+                            ) : (
+                              displayedData.map((row, idx) => (
+                                <tr key={idx}>
+                                  <td style={{ padding: '12px 8px', border: '1px solid #d1d5db', textAlign: 'center' }}>{row.stt}</td>
+                                  <td style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}>{row.name}</td>
+                                  <td style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}>{row.phone}</td>
+                                  <td style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}>{row.licensePlate}</td>
+                                  <td style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}>{row.vehicleType}</td>
+                                  <td style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}>{row.brand}</td>
+                                  <td style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}>{row.ownership}</td>
+                                  <td style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}>{row.paymentMethod}</td>
+                                  <td style={{ padding: '12px 8px', border: '1px solid #d1d5db', textAlign: 'center', color: row.isValid ? '#10b981' : '#ef4444', fontWeight: '500' }}>
+                                    {row.isValid ? '' : row.errors.join(', ')}
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                          <button style={{ padding: '4px 12px', border: '1px solid #d1d5db', background: '#fff', borderRadius: '4px' }}>&lt;</button>
+                          <button style={{ padding: '4px 12px', border: '1px solid #d1d5db', background: '#e5e7eb', borderRadius: '4px' }}>1</button>
+                          <button style={{ padding: '4px 12px', border: '1px solid #d1d5db', background: '#fff', borderRadius: '4px' }}>2</button>
+                          <button style={{ padding: '4px 12px', border: '1px solid #d1d5db', background: '#fff', borderRadius: '4px' }}>&gt;</button>
+                          <select style={{ padding: '4px 8px', border: '1px solid #d1d5db', background: '#fff', borderRadius: '4px', marginLeft: '8px' }}>
+                            <option>10/trang</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '16px', marginTop: '32px', paddingTop: '16px', borderTop: '1px solid #d1d5db' }}>
+                  {activeTab === 'upload' ? (
+                    <>
+                      <button onClick={() => navigate('/')} style={{ padding: '8px 24px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#fff', color: '#374151', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <i className="fa-solid fa-xmark"></i> Đóng
+                      </button>
+                      <button onClick={() => setActiveTab('check')} style={{ padding: '8px 24px', border: 'none', borderRadius: '4px', background: '#e11d48', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        Tiếp <i className="fa-solid fa-chevron-right"></i>
+                      </button>
+                    </>
+                  ) : (
+                    <button style={{ padding: '8px 24px', border: 'none', borderRadius: '4px', background: '#e11d48', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <i className="fa-solid fa-save"></i> Lưu dữ liệu hợp lệ
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

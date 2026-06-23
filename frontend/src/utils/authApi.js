@@ -3,9 +3,9 @@
  * Wrapper cho fetch() với cơ chế tự động refresh access token.
  *
  * Flow:
- *  1. Đính kèm Authorization header vào mọi request.
- *  2. Nếu nhận 401 → thử gọi /api/v1/auth/refresh một lần.
- *  3. Refresh thành công → lưu access token mới → retry request gốc.
+ *  1. Check access token hết hạn → nếu hết hạn thì refresh ngay (proactive).
+ *  2. Đính kèm Authorization header vào request.
+ *  3. Nếu nhận 401 → thử refresh lần nữa (reactive fallback).
  *  4. Refresh thất bại → gọi forceLogout() → redirect về /.
  *
  * Tất cả API call trong app nên dùng authFetch thay vì fetch trực tiếp.
@@ -16,6 +16,7 @@ import {
   getRefreshToken,
   saveTokens,
   clearTokens,
+  isAccessTokenValid,
   isRefreshTokenValid,
 } from './tokenManager'
 
@@ -46,6 +47,7 @@ async function refreshAccessToken() {
 
   _refreshPromise = (async () => {
     const refreshToken = getRefreshToken()
+    
     if (!refreshToken || !isRefreshTokenValid()) {
       throw new Error('No valid refresh token')
     }
@@ -62,6 +64,7 @@ async function refreshAccessToken() {
     })
 
     const data = await res.json()
+    
     if (!res.ok) throw new Error(`Refresh failed: ${res.status}`)
 
     const newAccessToken =
@@ -73,9 +76,14 @@ async function refreshAccessToken() {
 
     if (!newAccessToken) throw new Error('No access token in refresh response')
 
+    console.log('[Auth] Token refreshed successfully')
     saveTokens({ accessToken: newAccessToken })
     return newAccessToken
   })()
+    .catch(err => {
+      console.log('[Auth] Token refresh failed:', err.message)
+      throw err
+    })
     .finally(() => {
       _refreshPromise = null
     })
@@ -93,6 +101,17 @@ async function refreshAccessToken() {
  * @returns {Promise<Response>}
  */
 export async function authFetch(url, options = {}) {
+  
+  // ── Proactive refresh: check token hết hạn TRƯỚC khi gửi request ──
+  if (!isAccessTokenValid()) {
+    try {
+      await refreshAccessToken()
+    } catch (err) {
+      forceLogout()
+      return new Response(null, { status: 401, statusText: 'Unauthorized' })
+    }
+  }
+
   const accessToken = getAccessToken()
 
   const headers = {
@@ -107,7 +126,7 @@ export async function authFetch(url, options = {}) {
   // Token hợp lệ → trả về ngay
   if (res.status !== 401) return res
 
-  // ── 401: thử refresh ──
+  // ── 401: Reactive fallback - thử refresh lần nữa ──
   try {
     const newAccessToken = await refreshAccessToken()
     // Retry với token mới
@@ -116,7 +135,7 @@ export async function authFetch(url, options = {}) {
       'Authorization': `Bearer ${newAccessToken}`,
     }
     return fetch(url, { ...options, headers: retryHeaders, credentials: 'include' })
-  } catch {
+  } catch (err) {
     // Refresh thất bại → force logout
     forceLogout()
     // Trả về response 401 gốc để caller xử lý nếu cần
