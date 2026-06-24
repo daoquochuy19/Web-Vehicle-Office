@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useMasterData } from '../hooks/useMasterData'
 import FilePreviewModal from '../components/FilePreviewModal'
 import { authFetch } from '../utils/authApi'
 import * as XLSX from 'xlsx'
+import logoImg from '../assets/images/hapulico-logo.jpg'
 
 
 // Giá trị registrationType từ Odoo selection
@@ -16,6 +17,13 @@ const REGISTRATION_TYPE_LOST_REISSUE = 'lost_reissue'
 
 export default function VehicleRegistration() {
   const navigate = useNavigate()
+  const location = useLocation()
+
+  const handleLogout = () => {
+    localStorage.removeItem('loggedIn');
+    navigate('/');
+  };
+
   const {
     landlords,
     typePartnerOptions,
@@ -27,6 +35,9 @@ export default function VehicleRegistration() {
     loading: masterLoading,
     error: masterError,
   } = useMasterData()
+
+  // --- Get mode from navigation state ---
+  const mode = location.state?.mode || 'manual'
 
   // --- State form chung ---
   const [formData, setFormData] = useState({
@@ -71,7 +82,7 @@ export default function VehicleRegistration() {
   const [reissueFeePayment, setReissueFeePayment] = useState('')
 
   // --- State riêng cho Upload Excel ---
-  const [activeTab, setActiveTab] = useState('upload')
+  const [activeTab, setActiveTab] = useState(mode === 'excel' ? 'upload' : null)
   const [excelFile, setExcelFile] = useState(null)
   const [excelFileName, setExcelFileName] = useState('')
   const [parsedData, setParsedData] = useState([])
@@ -817,11 +828,113 @@ export default function VehicleRegistration() {
   const renderActions = () => (
     <div className="form-actions-bottom" style={{ marginTop: 40, paddingTop: 20, borderTop: '1px solid #e2e8f0', display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
       <button type="button" onClick={() => navigate('/my/menu')} className="secondary-button" style={{ width: 'auto', paddingLeft: 24, paddingRight: 24 }}>
-        <i className="fa-solid fa-arrow-left"></i> Về menu
+        <i className="fa-solid fa-arrow-left"></i> Đóng
       </button>
       <button type="submit" className="action-button" style={{ width: 'auto', paddingLeft: 24, paddingRight: 24 }}>
         <i className="fa-solid fa-floppy-disk"></i> Lưu
       </button>
+    </div>
+  )
+
+  // ─── Render manual form for "Cấp mới" ────────────────────────────────────────
+  const renderManualForm = () => (
+    <div className="form-layout-2col">
+      <div className="form-left">
+        <form onSubmit={handleSubmitNew} className="vehicle-registration-form">
+          {renderTopRows()}
+          {renderCompanyRow()}
+          {renderPremisesVehicleRow()}
+
+          {/* Loại sở hữu + Họ tên */}
+          <div className="form-input-row">
+            <div className="form-group">
+              <label className="form-label form-label-dark">Loại sở hữu</label>
+              <div style={{ display: 'flex', gap: 24, padding: '8px 0' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: '0.95rem', color: '#0f172a' }}>
+                  <input
+                    type="radio"
+                    name="ownershipType"
+                    value={true}
+                    checked={!formData.ownershipType}
+                    onChange={() => setFormData({ ...formData, ownershipType: false })}
+                    style={{ width: 18, height: 18, accentColor: '#ef4444', cursor: 'pointer' }}
+                  />
+                  Chính chủ
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: '0.95rem', color: '#0f172a' }}>
+                  <input
+                    type="radio"
+                    name="ownershipType"
+                    value={false}
+                    checked={formData.ownershipType}
+                    onChange={() => setFormData({ ...formData, ownershipType: true })}
+                    style={{ width: 18, height: 18, accentColor: '#ef4444', cursor: 'pointer' }}
+                  />
+                  Không chính chủ
+                </label>
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label form-label-dark">Họ tên người sử dụng <span style={{ color: '#ef4444' }}>*</span></label>
+              <input type="text" name="userName" value={formData.userName} onChange={handleChange} placeholder="-Nhập-" className="form-input" />
+            </div>
+          </div>
+
+          {renderUserRow()}
+          {renderFeePaymentRow()}
+          {renderEffectiveDateRow()}
+
+          {/* Ghi chú — full width */}
+          <div className="form-group">
+            <label className="form-label form-label-dark">Ghi chú</label>
+            <textarea name="note" value={formData.note} onChange={handleChange} placeholder="Nhập ghi chú" className="form-textarea" rows={4} style={{ minHeight: '100px' }} />
+          </div>
+
+          {renderActions()}
+        </form>
+      </div>
+
+      <div className="form-right">
+        <div style={{ marginBottom: 24 }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: 16, color: '#111827' }}>Thông tin định mức</h3>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', color: '#111827' }}>
+            <thead>
+              <tr style={{ background: '#e5e7eb' }}>
+                <th style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}></th>
+                <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Định mức</th>
+                <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Thực tế</th>
+                <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Ngoài định mức</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style={{ padding: '12px 8px', border: '1px solid #d1d5db', fontWeight: 'bold' }}>24VP.15 (1000m2)</td>
+                <td style={{ padding: '12px 8px', textAlign: 'center', background: '#dc2626', color: 'white', fontWeight: 'bold', border: '1px solid #d1d5db' }}></td>
+                <td style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}></td>
+                <td style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}></td>
+              </tr>
+              <tr>
+                <td style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}>Ô tô</td>
+                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}></td>
+                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}></td>
+                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}></td>
+              </tr>
+              <tr>
+                <td style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}>Xe máy</td>
+                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}></td>
+                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}></td>
+                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* Ghi chú */}
+        <div className="form-group">
+          <label className="form-label form-label-dark">Ghi chú</label>
+          <textarea placeholder="Nhập ghi chú" className="form-textarea" rows={4} style={{ minHeight: '100px' }} />
+        </div>
+      </div>
     </div>
   )
 
@@ -1109,15 +1222,53 @@ export default function VehicleRegistration() {
   )
 
   return (
-    <>
-      <main className="page-shell vehicle-registration-shell-no-bg">
-        <section className="registration-form-container">
-          <div className="page-header">
+    <div className="dashboard-shell">
+      <aside className="dashboard-sidebar">
+        <div className="dashboard-logo">
+          <img src={logoImg} alt="Hapulico Logo" />
+        </div>
+        <nav className="dashboard-nav">
+          <div
+            className="dashboard-nav-item active">
+            <div className="dashboard-nav-item-icon">
+              <i className="fa-solid fa-car"></i>
+            </div>
+            <span>Thẻ xe</span>
+          </div>
+          <div className="dashboard-nav-item disabled">
+            <div className="dashboard-nav-item-icon">
+              <i className="fa-solid fa-wallet"></i>
+            </div>
+            <span>Chi phí</span>
+          </div>
+          <div className="dashboard-nav-item disabled">
+            <div className="dashboard-nav-item-icon">
+              <i className="fa-solid fa-calendar-check"></i>
+            </div>
+            <span>Ca làm việc</span>
+          </div>
+        </nav>
+      </aside>
+      <main className="dashboard-main">
+        <header className="dashboard-header">
+          <div className="dashboard-header-left">
             <button className="back-button" onClick={() => navigate('/my/menu')}>
               <i className="fa-solid fa-arrow-left"></i>
             </button>
-            <h2>Thông tin phiếu đăng ký</h2>
+            <div>
+              <h1 className="dashboard-header-title">Thông tin phiếu đăng ký</h1>
+            </div>
           </div>
+          <div className="dashboard-header-right">
+            <button className="logout-btn" onClick={handleLogout}>
+              <i className="fa-solid fa-sign-out-alt"></i>
+              Đăng xuất
+            </button>
+          </div>
+        </header>
+        <div className="dashboard-content">
+          <div style={{ backgroundColor: '#fff', borderRadius: '16px', padding: '32px' }}>
+            <section className="registration-form-container">
 
           {/* ── LAYOUT: đổi biển → đơn cột, cấp mới → 2 cột ── */}
           {isChangePlate ? (
@@ -1344,9 +1495,9 @@ export default function VehicleRegistration() {
             renderReissueForm(handleSubmitLostReissue, false)
 
           ) : (
-
-            /* ════════════ VIEW CẤP MỚI / BULK UPLOAD ════════════ */
-            <div style={{ backgroundColor: '#fff', borderRadius: '8px', width: '100%', maxWidth: '1200px', margin: '0 auto', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', overflow: 'hidden', height: 'fit-content' }}>
+            mode === 'excel' ? (
+              /* ════════════ VIEW EXCEL IMPORT ════════════ */
+              <div style={{ backgroundColor: '#fff', borderRadius: '8px', width: '100%', maxWidth: '1200px', margin: '0 auto', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', overflow: 'hidden', height: 'fit-content' }}>
               <div style={{ backgroundColor: '#f3f4f6', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 'bold', color: '#374151' }}>Nhập từ file Excel</h2>
               </div>
@@ -1387,7 +1538,7 @@ export default function VehicleRegistration() {
                 <div style={{ display: 'flex', gap: '24px', marginBottom: '24px' }}>
                   <div style={{ flex: 1 }}>
                     <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Mặt bằng thuê <span style={{ color: 'red' }}>(*)</span></label>
-                    <select name="contract" value={formData.contract} onChange={handleChange} style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb' }}>
+                    <select name="premises" value={formData.buidingHouse} onChange={handleChange} style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb' }}>
                       <option value="">{masterLoading ? 'Đang tải...' : '-- Chọn mặt bằng --'}</option>
                       {buidingHouse.map((c) => (
                       <option key={c.id} value={c.id}>{c.name}</option>
@@ -1648,7 +1799,7 @@ export default function VehicleRegistration() {
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '16px', marginTop: '32px', paddingTop: '16px', borderTop: '1px solid #d1d5db' }}>
                   {activeTab === 'upload' ? (
                     <>
-                      <button onClick={() => navigate('/')} style={{ padding: '8px 24px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#fff', color: '#374151', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button onClick={() => navigate('/my/menu')} style={{ padding: '8px 24px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#fff', color: '#374151', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <i className="fa-solid fa-xmark"></i> Đóng
                       </button>
                       <button onClick={() => setActiveTab('check')} style={{ padding: '8px 24px', border: 'none', borderRadius: '4px', background: '#e11d48', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1662,12 +1813,18 @@ export default function VehicleRegistration() {
                   )}
                 </div>
               </div>
-            </div>
+              </div>
+            ) : (
+              /* ════════════ VIEW MANUAL FORM (CẤP MỚI) ════════════ */
+              renderManualForm()
+            )
           )}
 
-        </section>
+            </section>
+          </div>
+        </div>
       </main>
       <FilePreviewModal file={previewFile} onClose={() => setPreviewFile(null)} />
-    </>
+    </div>
   )
 }

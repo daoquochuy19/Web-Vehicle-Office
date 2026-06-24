@@ -1,51 +1,118 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import logoImg from '../assets/images/hapulico-logo.jpg';
 
 export default function Menu() {
   const navigate = useNavigate();
+  const [activeNav, setActiveNav] = useState('vehicle');
+
+  const handleLogout = () => {
+    localStorage.removeItem('loggedIn');
+    navigate('/');
+  };
 
   return (
-    <main className="page-shell menu-shell">
-      <section className="menu-container">
-        <div className="menu-header">
-          <h1>Trang chủ</h1>
+    <div className="dashboard-shell">
+      {/* Left Sidebar */}
+      <aside className="dashboard-sidebar">
+        <div className="dashboard-logo">
+          <img src={logoImg} alt="Hapulico Logo" />
         </div>
-        
-        <div className="menu-items">
-          <div className="menu-item" onClick={() => navigate('/my/vehicle-registration')}>
-            <div className="menu-item-icon">
+        <nav className="dashboard-nav">
+          <div
+            className={`dashboard-nav-item ${activeNav === 'vehicle' ? 'active' : ''}`}
+            onClick={() => setActiveNav('vehicle')}
+          >
+            <div className="dashboard-nav-item-icon">
               <i className="fa-solid fa-car"></i>
             </div>
-            <div className="menu-item-content">
-              <h3>Thẻ xe</h3>
-              <p>Đăng ký và quản lý thẻ xe</p>
-            </div>
-            <i className="fa-solid fa-chevron-right menu-item-arrow"></i>
+            <span>Thẻ xe</span>
           </div>
-
-          <div className="menu-item menu-item-disabled">
-            <div className="menu-item-icon">
+          <div className="dashboard-nav-item disabled">
+            <div className="dashboard-nav-item-icon">
               <i className="fa-solid fa-wallet"></i>
             </div>
-            <div className="menu-item-content">
-              <h3>Chi phí</h3>
-              <p>Quản lý chi phí</p>
-            </div>
-            <i className="fa-solid fa-chevron-right menu-item-arrow"></i>
+            <span>Chi phí</span>
           </div>
-
-          <div className="menu-item menu-item-disabled">
-            <div className="menu-item-icon">
+          <div className="dashboard-nav-item disabled">
+            <div className="dashboard-nav-item-icon">
               <i className="fa-solid fa-calendar-check"></i>
             </div>
-            <div className="menu-item-content">
-              <h3>Ca làm việc</h3>
-              <p>Quản lý ca làm việc</p>
+            <span>Ca làm việc</span>
+          </div>
+        </nav>
+      </aside>
+
+      {/* Main Content */}
+      <main className="dashboard-main">
+        <header className="dashboard-header">
+          <div className="dashboard-header-left">
+            <div>
+              <h1 className="dashboard-header-title">Đăng ký thẻ xe</h1>
             </div>
-            <i className="fa-solid fa-chevron-right menu-item-arrow"></i>
+          </div>
+          <div className="dashboard-header-right">
+            <button className="logout-btn" onClick={handleLogout}>
+              <i className="fa-solid fa-sign-out-alt"></i>
+              Đăng xuất
+            </button>
+          </div>
+        </header>
+
+        <div className="dashboard-content">
+          {/* Action Buttons */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginBottom: '20px' }}>
+            <button className="btn-secondary" onClick={() => navigate('/my/vehicle-registration', { state: { mode: 'excel' } })}>
+              <i className="fa-solid fa-file-excel"></i>
+              Thao tác excel
+            </button>
+            <button className="btn-primary" onClick={() => navigate('/my/vehicle-registration', { state: { mode: 'manual' } })}>
+              <i className="fa-solid fa-plus"></i>
+              Thêm mới
+            </button>
+          </div>
+
+          {/* Filters */}
+          <div className="dashboard-filters">
+            <select className="filter-select">
+              <option>Hình thức đăng ký</option>
+              <option>Cấp mới</option>
+              <option>Đổi biển kiểm soát</option>
+            </select>
+            <select className="filter-select">
+              <option>Trạng thái</option>
+              <option>Chờ tiếp nhận</option>
+              <option>Đang xử lý</option>
+              <option>Hoàn thành</option>
+            </select>
+            <select className="filter-select">
+              <option>Mặt bằng</option>
+            </select>
+            <select className="filter-select">
+              <option>Ngày đăng ký</option>
+            </select>
+          </div>
+
+          {/* Table */}
+          <div className="dashboard-table-container">
+            <table className="dashboard-table">
+              <thead>
+                <tr>
+                  <th>STT</th>
+                  <th>Hình thức đăng ký</th>
+                  <th>Ngày đăng ký</th>
+                  <th>Số hợp đồng</th>
+                  <th>Mặt bằng</th>
+                  <th>Trạng thái</th>
+                </tr>
+              </thead>
+              <tbody>
+                {/* Data will be added later via API */}
+              </tbody>
+            </table>
           </div>
         </div>
-      </section>
-    </main>
+      </main>
+    </div>
   );
 }
