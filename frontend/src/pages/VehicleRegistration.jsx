@@ -698,6 +698,73 @@ export default function VehicleRegistration() {
     }
   }
 
+  const handleSubmitExcel = async () => {
+    // Validate form data
+    if (!formData.registrationType) {
+      alert('Vui lòng chọn Hình thức đăng ký')
+      return
+    }
+    if (!formData.effectiveDate) {
+      alert('Vui lòng chọn Ngày đăng ký sử dụng')
+      return
+    }
+    if (!formData.company) {
+      alert('Vui lòng chọn Tên công ty')
+      return
+    }
+    if (!formData.contract) {
+      alert('Vui lòng chọn Số hợp đồng')
+      return
+    }
+    if (!formData.buidingHouse) {
+      alert('Vui lòng chọn Mặt bằng thuê')
+      return
+    }
+    // Get valid rows only
+    const validRows = parsedData.filter(d => d.isValid)
+    if (validRows.length === 0) {
+      alert('Không có dữ liệu hợp lệ để lưu')
+      return
+    }
+    // Build payload
+    const lineRegisterIds = validRows.map(row => ({
+      license_plate: row.licensePlate,
+      registrant_name: row.name,
+      phone_number: row.phone,
+      vehicle_type_name: row.vehicleType,
+      brand_name: row.brand,
+      is_approved: true,
+      rejection_reason: ''
+    }))
+    const payload = {
+      registration_type: formData.registrationType,
+      registration_method: 'online',
+      house_id: Number(formData.buidingHouse),
+      contract_id: Number(formData.contract),
+      company_id: Number(formData.company),
+      date_request: formData.effectiveDate,
+      line_register_ids: lineRegisterIds
+    }
+    try {
+      const res = await authFetch('/api/v1/office-parking', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      alert('Dữ liệu đã được lưu thành công')
+      navigate('/my/menu')
+    } catch (err) {
+      console.error('Error saving data:', err)
+      alert('Lưu dữ liệu thất bại, vui lòng thử lại')
+    }
+  }
+
   // ─── Shared: 2 row đầu luôn hiển thị ───────────────────────────────────────
   const renderTopRows = () => (
     <>
@@ -1538,7 +1605,7 @@ export default function VehicleRegistration() {
                 <div style={{ display: 'flex', gap: '24px', marginBottom: '24px' }}>
                   <div style={{ flex: 1 }}>
                     <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Mặt bằng thuê <span style={{ color: 'red' }}>(*)</span></label>
-                    <select name="premises" value={formData.buidingHouse} onChange={handleChange} style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb' }}>
+                    <select name="buidingHouse" value={formData.buidingHouse} onChange={handleChange} style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb' }}>
                       <option value="">{masterLoading ? 'Đang tải...' : '-- Chọn mặt bằng --'}</option>
                       {buidingHouse.map((c) => (
                       <option key={c.id} value={c.id}>{c.name}</option>
@@ -1807,7 +1874,7 @@ export default function VehicleRegistration() {
                       </button>
                     </>
                   ) : (
-                    <button style={{ padding: '8px 24px', border: 'none', borderRadius: '4px', background: '#e11d48', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <button onClick={handleSubmitExcel} style={{ padding: '8px 24px', border: 'none', borderRadius: '4px', background: '#e11d48', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <i className="fa-solid fa-save"></i> Lưu dữ liệu hợp lệ
                     </button>
                   )}
