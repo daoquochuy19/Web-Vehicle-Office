@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useMasterData } from '../hooks/useMasterData'
 import FilePreviewModal from '../components/FilePreviewModal'
@@ -97,6 +97,9 @@ export default function VehicleRegistration() {
     paymentMethod: '',
   })
   const [showManualRow, setShowManualRow] = useState(false)
+  const [editingRowId, setEditingRowId] = useState(null)
+  const [tempRowData, setTempRowData] = useState({})
+  const editingRowRef = useRef(null)
 
   const isChangePlate = formData.registrationType === REGISTRATION_TYPE_CHANGE_PLATE
   const isLockCard = formData.registrationType === REGISTRATION_TYPE_LOCK_CARD
@@ -409,6 +412,58 @@ export default function VehicleRegistration() {
   const removeRow = (id) => {
     setParsedData(prev => prev.filter(row => row.id !== id).map((row, idx) => ({ ...row, stt: idx + 1 })));
   }
+
+  const startEditRow = (row) => {
+    setEditingRowId(row.id)
+    setTempRowData({ ...row })
+  }
+
+  const cancelEditRow = () => {
+    setEditingRowId(null)
+    setTempRowData({})
+  }
+
+  const handleTempRowChange = (field, value) => {
+    setTempRowData(prev => ({ ...prev, [field]: value }))
+  }
+
+  const validateRow = (row) => {
+    const errors = []
+    if (!row.name) errors.push('Thiếu "Tên nhân viên"')
+    if (!row.licensePlate) errors.push('Thiếu "Biển kiểm soát"')
+    if (!row.vehicleType) errors.push('Thiếu "Loại xe"')
+    if (!row.paymentMethod) errors.push('Thiếu "Hình thức thanh toán"')
+    
+    const duplicate = parsedData.some(r => r.id !== row.id && r.licensePlate === row.licensePlate)
+    if (duplicate) errors.push('Biển kiểm soát đã tồn tại')
+    
+    return {
+      ...row,
+      isValid: errors.length === 0,
+      errors: errors
+    }
+  }
+
+  const saveEditRow = () => {
+    const validatedRow = validateRow(tempRowData)
+    setParsedData(prev => prev.map(row => 
+      row.id === editingRowId ? validatedRow : row
+    ))
+    setEditingRowId(null)
+    setTempRowData({})
+  }
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (editingRowId && editingRowRef.current && !editingRowRef.current.contains(event.target)) {
+        saveEditRow()
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [editingRowId, tempRowData])
 
   const handleOldPlateChange = (e) => {
     const value = e.target.value
@@ -1934,33 +1989,150 @@ export default function VehicleRegistration() {
                                 <td colSpan={showErrorColumn ? 10 : 9} style={{ padding: '24px', textAlign: 'center', color: '#6b7280', border: 'none' }}>Không có dữ liệu</td>
                               </tr>
                             ) : (
-                              displayedData.map((row, idx) => (
-                                <tr key={row.id} style={{ background: idx % 2 === 0 ? 'transparent' : '#f9fafb' }}>
+                              displayedData.map((row, idx) => {
+                                const isEditing = editingRowId === row.id
+                                const currentData = isEditing ? tempRowData : row
+                                return (
+                                <tr 
+                                  key={row.id} 
+                                  ref={isEditing ? editingRowRef : null}
+                                  style={{ background: idx % 2 === 0 ? 'transparent' : '#f9fafb' }}>
                                   <td style={{ padding: '12px 8px', border: 'none', textAlign: 'center' }}>{row.stt}</td>
-                                  <td style={{ padding: '12px 8px', border: 'none' }}>{row.name}</td>
-                                  <td style={{ padding: '12px 8px', border: 'none' }}>{row.phone}</td>
-                                  <td style={{ padding: '12px 8px', border: 'none' }}>{row.licensePlate}</td>
-                                  <td style={{ padding: '12px 8px', border: 'none' }}>{row.vehicleType}</td>
-                                  <td style={{ padding: '12px 8px', border: 'none' }}>{row.brand}</td>
-                                  <td style={{ padding: '12px 8px', border: 'none' }}>{row.ownership}</td>
-                                  <td style={{ padding: '12px 8px', border: 'none' }}>{row.paymentMethod}</td>
+                                  <td style={{ padding: '12px 8px', border: 'none' }}>
+                                    {isEditing ? (
+                                      <input
+                                        type="text"
+                                        value={currentData.name}
+                                        onChange={(e) => handleTempRowChange('name', e.target.value)}
+                                        style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: '4px', outline: 'none' }}
+                                      />
+                                    ) : (
+                                      <span onClick={() => startEditRow(row)} style={{ cursor: 'pointer', display: 'block', width: '100%' }}>{row.name}</span>
+                                    )}
+                                  </td>
+                                  <td style={{ padding: '12px 8px', border: 'none' }}>
+                                    {isEditing ? (
+                                      <input
+                                        type="text"
+                                        value={currentData.phone}
+                                        onChange={(e) => handleTempRowChange('phone', e.target.value)}
+                                        style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: '4px', outline: 'none' }}
+                                      />
+                                    ) : (
+                                      <span onClick={() => startEditRow(row)} style={{ cursor: 'pointer', display: 'block', width: '100%' }}>{row.phone}</span>
+                                    )}
+                                  </td>
+                                  <td style={{ padding: '12px 8px', border: 'none' }}>
+                                    {isEditing ? (
+                                      <input
+                                        type="text"
+                                        value={currentData.licensePlate}
+                                        onChange={(e) => handleTempRowChange('licensePlate', e.target.value)}
+                                        style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: '4px', outline: 'none' }}
+                                      />
+                                    ) : (
+                                      <span onClick={() => startEditRow(row)} style={{ cursor: 'pointer', display: 'block', width: '100%' }}>{row.licensePlate}</span>
+                                    )}
+                                  </td>
+                                  <td style={{ padding: '12px 8px', border: 'none' }}>
+                                    {isEditing ? (
+                                      <input
+                                        type="text"
+                                        value={currentData.vehicleType}
+                                        onChange={(e) => handleTempRowChange('vehicleType', e.target.value)}
+                                        style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: '4px', outline: 'none' }}
+                                      />
+                                    ) : (
+                                      <span onClick={() => startEditRow(row)} style={{ cursor: 'pointer', display: 'block', width: '100%' }}>{row.vehicleType}</span>
+                                    )}
+                                  </td>
+                                  <td style={{ padding: '12px 8px', border: 'none' }}>
+                                    {isEditing ? (
+                                      <input
+                                        type="text"
+                                        value={currentData.brand}
+                                        onChange={(e) => handleTempRowChange('brand', e.target.value)}
+                                        style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: '4px', outline: 'none' }}
+                                      />
+                                    ) : (
+                                      <span onClick={() => startEditRow(row)} style={{ cursor: 'pointer', display: 'block', width: '100%' }}>{row.brand}</span>
+                                    )}
+                                  </td>
+                                  <td style={{ padding: '12px 8px', border: 'none' }}>
+                                    {isEditing ? (
+                                      <select
+                                        value={currentData.ownership}
+                                        onChange={(e) => handleTempRowChange('ownership', e.target.value)}
+                                        style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: '4px', outline: 'none', background: '#fff' }}
+                                      >
+                                        <option value="">Chọn...</option>
+                                        <option value="Chính chủ">Chính chủ</option>
+                                        <option value="Không chính chủ">Không chính chủ</option>
+                                      </select>
+                                    ) : (
+                                      <span onClick={() => startEditRow(row)} style={{ cursor: 'pointer', display: 'block', width: '100%' }}>{row.ownership}</span>
+                                    )}
+                                  </td>
+                                  <td style={{ padding: '12px 8px', border: 'none' }}>
+                                    {isEditing ? (
+                                      <input
+                                        type="text"
+                                        value={currentData.paymentMethod}
+                                        onChange={(e) => handleTempRowChange('paymentMethod', e.target.value)}
+                                        style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: '4px', outline: 'none' }}
+                                      />
+                                    ) : (
+                                      <span onClick={() => startEditRow(row)} style={{ cursor: 'pointer', display: 'block', width: '100%' }}>{row.paymentMethod}</span>
+                                    )}
+                                  </td>
                                   {showErrorColumn && (
-                                    <td style={{ padding: '12px 8px', border: 'none', textAlign: 'center', color: row.isValid ? '#10b981' : '#ef4444', fontWeight: '500' }}>
-                                      {row.isValid ? '' : row.errors.join(', ')}
+                                    <td style={{ padding: '12px 8px', border: 'none', textAlign: 'center', color: currentData.isValid ? '#10b981' : '#ef4444', fontWeight: '500' }}>
+                                      {currentData.isValid ? '' : (currentData.errors || []).join(', ')}
                                     </td>
                                   )}
                                   <td style={{ padding: '12px 8px', border: 'none', textAlign: 'center' }}>
-                                    <button
-                                      type="button"
-                                      onClick={() => removeRow(row.id)}
-                                      style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1rem' }}
-                                      title="Xóa dòng"
-                                    >
-                                      <i className="fa-solid fa-trash"></i>
-                                    </button>
+                                    {isEditing ? (
+                                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                                        <button
+                                          type="button"
+                                          onClick={saveEditRow}
+                                          style={{ background: '#10b981', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}
+                                          title="Lưu"
+                                        >
+                                          <i className="fa-solid fa-check"></i>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={cancelEditRow}
+                                          style={{ background: '#6b7280', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}
+                                          title="Hủy"
+                                        >
+                                          <i className="fa-solid fa-xmark"></i>
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                                        <button
+                                          type="button"
+                                          onClick={() => startEditRow(row)}
+                                          style={{ background: 'transparent', border: 'none', color: '#3b82f6', cursor: 'pointer', fontSize: '1rem' }}
+                                          title="Sửa"
+                                        >
+                                          <i className="fa-solid fa-pen-to-square"></i>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => removeRow(row.id)}
+                                          style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1rem' }}
+                                          title="Xóa dòng"
+                                        >
+                                          <i className="fa-solid fa-trash"></i>
+                                        </button>
+                                      </div>
+                                    )}
                                   </td>
                                 </tr>
-                              ))
+                              )})
                             )}
                             {showManualRow && (
                               <tr style={{ background: '#f9fafb' }}>
