@@ -87,6 +87,16 @@ export default function VehicleRegistration() {
   const [excelFileName, setExcelFileName] = useState('')
   const [parsedData, setParsedData] = useState([])
   const [filterType, setFilterType] = useState('invalid')
+  const [manualRow, setManualRow] = useState({
+    name: '',
+    phone: '',
+    licensePlate: '',
+    vehicleType: '',
+    brand: '',
+    ownership: '',
+    paymentMethod: '',
+  })
+  const [showManualRow, setShowManualRow] = useState(false)
 
   const isChangePlate = formData.registrationType === REGISTRATION_TYPE_CHANGE_PLATE
   const isLockCard = formData.registrationType === REGISTRATION_TYPE_LOCK_CARD
@@ -271,7 +281,6 @@ export default function VehicleRegistration() {
       }
 
       const rows = [];
-      const licensePlates = new Set();
 
       for (let i = 1; i < data.length; i++) {
         const row = data[i];
@@ -280,7 +289,6 @@ export default function VehicleRegistration() {
         if (!row[1] && !row[2] && !row[3] && !row[4] && !row[5] && !row[6] && !row[7]) continue;
 
         const record = {
-          stt: row[0] || i,
           name: row[1] || '',
           phone: row[2] || '',
           licensePlate: row[3] || '',
@@ -289,7 +297,7 @@ export default function VehicleRegistration() {
           ownership: row[6] || '',
           paymentMethod: row[7] || '',
           isValid: true,
-          errors: []
+          errors: [],
         };
 
         if (!record.name) {
@@ -299,13 +307,6 @@ export default function VehicleRegistration() {
         if (!record.licensePlate) {
           record.isValid = false;
           record.errors.push('Thiếu "Biển kiểm soát"');
-        } else {
-          if (licensePlates.has(record.licensePlate)) {
-            record.isValid = false;
-            record.errors.push('Biển kiểm soát đã tồn tại');
-          } else {
-            licensePlates.add(record.licensePlate);
-          }
         }
         if (!record.vehicleType) {
           record.isValid = false;
@@ -319,14 +320,84 @@ export default function VehicleRegistration() {
         rows.push(record);
       }
 
-      setParsedData(rows);
+      setParsedData(prev => {
+        const existingPlates = new Set(prev.filter(r => r.licensePlate).map(r => r.licensePlate));
+        const nextRows = rows.map((record, index) => {
+          const next = {
+            ...record,
+            id: `${Date.now()}-${index}-${Math.random()}`,
+            stt: prev.length + index + 1,
+            errors: [...record.errors],
+          };
+          if (next.licensePlate && existingPlates.has(next.licensePlate)) {
+            if (!next.errors.includes('Biển kiểm soát đã tồn tại')) {
+              next.errors.push('Biển kiểm soát đã tồn tại');
+            }
+            next.isValid = false;
+          }
+          existingPlates.add(next.licensePlate);
+          return next;
+        });
+        return [...prev, ...nextRows];
+      });
       setActiveTab('check');
     };
     reader.readAsBinaryString(file);
   };
 
+  const handleManualRowChange = (e) => {
+    const { name, value } = e.target
+    setManualRow(prev => ({ ...prev, [name]: value }))
+  }
+
+  const addManualRow = () => {
+    const row = {
+      stt: parsedData.length + 1,
+      name: manualRow.name.trim(),
+      phone: manualRow.phone.trim(),
+      licensePlate: manualRow.licensePlate.trim(),
+      vehicleType: manualRow.vehicleType.trim(),
+      brand: manualRow.brand.trim(),
+      ownership: manualRow.ownership.trim(),
+      paymentMethod: manualRow.paymentMethod.trim(),
+      isValid: true,
+      errors: [],
+    }
+
+    if (!row.name) row.errors.push('Thiếu "Tên nhân viên"')
+    if (!row.licensePlate) row.errors.push('Thiếu "Biển kiểm soát"')
+    if (!row.vehicleType) row.errors.push('Thiếu "Loại xe"')
+    if (!row.paymentMethod) row.errors.push('Thiếu "Hình thức thanh toán"')
+
+    const duplicatePlate = parsedData.some(d => d.licensePlate === row.licensePlate)
+    if (row.licensePlate && duplicatePlate) {
+      row.errors.push('Biển kiểm soát đã tồn tại')
+    }
+
+    if (row.errors.length > 0) {
+      row.isValid = false
+    }
+
+    const rowWithId = {
+      ...row,
+      id: `${Date.now()}-${Math.random()}`,
+    }
+
+    setParsedData(prev => [...prev, rowWithId])
+    setManualRow({
+      name: '',
+      phone: '',
+      licensePlate: '',
+      vehicleType: '',
+      brand: '',
+      ownership: '',
+      paymentMethod: '',
+    })
+  }
+
   const validCount = parsedData.filter(d => d.isValid).length;
   const invalidCount = parsedData.filter(d => !d.isValid).length;
+  const showErrorColumn = filterType !== 'valid';
 
   const displayedData = parsedData.filter(d => {
     if (filterType === 'all') return true;
@@ -334,6 +405,10 @@ export default function VehicleRegistration() {
     if (filterType === 'invalid') return !d.isValid;
     return true;
   });
+
+  const removeRow = (id) => {
+    setParsedData(prev => prev.filter(row => row.id !== id).map((row, idx) => ({ ...row, stt: idx + 1 })));
+  }
 
   const handleOldPlateChange = (e) => {
     const value = e.target.value
@@ -1812,7 +1887,13 @@ export default function VehicleRegistration() {
                           </button>
                           <select
                             value={filterType}
-                            onChange={(e) => setFilterType(e.target.value)}
+                            onChange={(e) => {
+                              const value = e.target.value
+                              setFilterType(value)
+                              if (value === 'invalid') {
+                                setShowManualRow(false)
+                              }
+                            }}
                             style={{
                               padding: '8px',
                               border: '1px solid #ef4444',
@@ -1831,46 +1912,202 @@ export default function VehicleRegistration() {
                       </div>
 
                       <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', color: '#111827' }}>
+                        <table style={{ width: '100%', borderCollapse: 'separate', fontSize: '0.875rem', color: '#111827', border: 'none' }}>
                           <thead>
                             <tr style={{ background: '#e5e7eb' }}>
-                              <th style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}>STT</th>
-                              <th style={{ padding: '12px 8px', border: '1px solid #d1d5db', textAlign: 'left', color: '#374151' }}>Tên nhân viên</th>
-                              <th style={{ padding: '12px 8px', border: '1px solid #d1d5db', textAlign: 'left', color: '#374151' }}>Số điện thoại</th>
-                              <th style={{ padding: '12px 8px', border: '1px solid #d1d5db', textAlign: 'left', color: '#374151' }}>Biển kiểm soát</th>
-                              <th style={{ padding: '12px 8px', border: '1px solid #d1d5db', textAlign: 'left', color: '#374151' }}>Loại xe</th>
-                              <th style={{ padding: '12px 8px', border: '1px solid #d1d5db', textAlign: 'left', color: '#374151' }}>Hãng xe</th>
-                              <th style={{ padding: '12px 8px', border: '1px solid #d1d5db', textAlign: 'left', color: '#374151' }}>Loại sở hữu</th>
-                              <th style={{ padding: '12px 8px', border: '1px solid #d1d5db', textAlign: 'left', color: '#374151' }}>Hình thức thanh toán</th>
-                              <th style={{ padding: '12px 8px', border: '1px solid #d1d5db', textAlign: 'center', color: '#374151' }}>Mô tả lỗi</th>
+                              <th style={{ padding: '12px 8px', border: 'none' }}>STT</th>
+                              <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151' }}>Tên nhân viên</th>
+                              <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151' }}>Số điện thoại</th>
+                              <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151' }}>Biển kiểm soát</th>
+                              <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151' }}>Loại xe</th>
+                              <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151' }}>Hãng xe</th>
+                              <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151' }}>Loại sở hữu</th>
+                              <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151' }}>Hình thức thanh toán</th>
+                              {showErrorColumn && (
+                                <th style={{ padding: '12px 8px', border: 'none', textAlign: 'center', color: '#374151' }}>Mô tả lỗi</th>
+                              )}
                             </tr>
                           </thead>
                           <tbody>
-                            {displayedData.length === 0 ? (
+                            {displayedData.length === 0 && !showManualRow ? (
                               <tr>
-                                <td colSpan="9" style={{ padding: '24px', textAlign: 'center', color: '#6b7280', border: '1px solid #d1d5db' }}>Không có dữ liệu</td>
+                                <td colSpan={showErrorColumn ? 10 : 9} style={{ padding: '24px', textAlign: 'center', color: '#6b7280', border: 'none' }}>Không có dữ liệu</td>
                               </tr>
                             ) : (
                               displayedData.map((row, idx) => (
-                                <tr key={idx}>
-                                  <td style={{ padding: '12px 8px', border: '1px solid #d1d5db', textAlign: 'center' }}>{row.stt}</td>
-                                  <td style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}>{row.name}</td>
-                                  <td style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}>{row.phone}</td>
-                                  <td style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}>{row.licensePlate}</td>
-                                  <td style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}>{row.vehicleType}</td>
-                                  <td style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}>{row.brand}</td>
-                                  <td style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}>{row.ownership}</td>
-                                  <td style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}>{row.paymentMethod}</td>
-                                  <td style={{ padding: '12px 8px', border: '1px solid #d1d5db', textAlign: 'center', color: row.isValid ? '#10b981' : '#ef4444', fontWeight: '500' }}>
-                                    {row.isValid ? '' : row.errors.join(', ')}
+                                <tr key={row.id} style={{ background: idx % 2 === 0 ? 'transparent' : '#f9fafb' }}>
+                                  <td style={{ padding: '12px 8px', border: 'none', textAlign: 'center' }}>{row.stt}</td>
+                                  <td style={{ padding: '12px 8px', border: 'none' }}>{row.name}</td>
+                                  <td style={{ padding: '12px 8px', border: 'none' }}>{row.phone}</td>
+                                  <td style={{ padding: '12px 8px', border: 'none' }}>{row.licensePlate}</td>
+                                  <td style={{ padding: '12px 8px', border: 'none' }}>{row.vehicleType}</td>
+                                  <td style={{ padding: '12px 8px', border: 'none' }}>{row.brand}</td>
+                                  <td style={{ padding: '12px 8px', border: 'none' }}>{row.ownership}</td>
+                                  <td style={{ padding: '12px 8px', border: 'none' }}>{row.paymentMethod}</td>
+                                  {showErrorColumn && (
+                                    <td style={{ padding: '12px 8px', border: 'none', textAlign: 'center', color: row.isValid ? '#10b981' : '#ef4444', fontWeight: '500' }}>
+                                      {row.isValid ? '' : row.errors.join(', ')}
+                                    </td>
+                                  )}
+                                  <td style={{ padding: '12px 8px', border: 'none', textAlign: 'center' }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => removeRow(row.id)}
+                                      style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1rem' }}
+                                      title="Xóa dòng"
+                                    >
+                                      <i className="fa-solid fa-trash"></i>
+                                    </button>
                                   </td>
                                 </tr>
                               ))
+                            )}
+                            {showManualRow && (
+                              <tr style={{ background: '#f9fafb' }}>
+                                <td style={{ padding: '12px 8px', border: 'none', textAlign: 'center' }}>+</td>
+                                <td style={{ padding: '12px 8px', border: 'none' }}>
+                                  <input
+                                    type="text"
+                                    name="name"
+                                    value={manualRow.name}
+                                    onChange={handleManualRowChange}
+                                    placeholder="Nhập tên..."
+                                    style={{ width: '100%', border: 'none', outline: 'none', minHeight: '38px', background: 'transparent' }}
+                                  />
+                                </td>
+                                <td style={{ padding: '12px 8px', border: 'none' }}>
+                                  <input
+                                    type="text"
+                                    name="phone"
+                                    value={manualRow.phone}
+                                    onChange={handleManualRowChange}
+                                    placeholder="Nhập SĐT..."
+                                    style={{ width: '100%', border: 'none', outline: 'none', minHeight: '38px', background: 'transparent' }}
+                                  />
+                                </td>
+                                <td style={{ padding: '12px 8px', border: 'none' }}>
+                                  <input
+                                    type="text"
+                                    name="licensePlate"
+                                    value={manualRow.licensePlate}
+                                    onChange={handleManualRowChange}
+                                    placeholder="Nhập biển..."
+                                    style={{ width: '100%', border: 'none', outline: 'none', minHeight: '38px', background: 'transparent' }}
+                                  />
+                                </td>
+                                <td style={{ padding: '12px 8px', border: 'none' }}>
+                                  <input
+                                    type="text"
+                                    name="vehicleType"
+                                    value={manualRow.vehicleType}
+                                    onChange={handleManualRowChange}
+                                    placeholder="Nhập loại xe..."
+                                    style={{ width: '100%', border: 'none', outline: 'none', minHeight: '38px', background: 'transparent' }}
+                                  />
+                                </td>
+                                <td style={{ padding: '12px 8px', border: 'none' }}>
+                                  <input
+                                    type="text"
+                                    name="brand"
+                                    value={manualRow.brand}
+                                    onChange={handleManualRowChange}
+                                    placeholder="Nhập hãng..."
+                                    style={{ width: '100%', border: 'none', outline: 'none', minHeight: '38px', background: 'transparent' }}
+                                  />
+                                </td>
+                                <td style={{ padding: '12px 8px', border: 'none' }}>
+                                  <select
+                                    name="ownership"
+                                    value={manualRow.ownership}
+                                    onChange={handleManualRowChange}
+                                    style={{ width: '100%', border: 'none', outline: 'none', minHeight: '38px', background: 'transparent' }}
+                                  >
+                                    <option value="">Chọn...</option>
+                                    <option value="Chính chủ">Chính chủ</option>
+                                    <option value="Không chính chủ">Không chính chủ</option>
+                                  </select>
+                                </td>
+                                <td style={{ padding: '12px 8px', border: 'none' }}>
+                                  <input
+                                    type="text"
+                                    name="paymentMethod"
+                                    value={manualRow.paymentMethod}
+                                    onChange={handleManualRowChange}
+                                    placeholder="Thanh toán..."
+                                    style={{ width: '100%', border: 'none', outline: 'none', minHeight: '38px', background: 'transparent' }}
+                                  />
+                                </td>
+                                {showErrorColumn && <td style={{ padding: '12px 8px', border: 'none' }}></td>}
+                                <td style={{ padding: '12px 8px', border: 'none', textAlign: 'center' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      addManualRow()
+                                      setShowManualRow(false)
+                                    }}
+                                    style={{ padding: '8px 12px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+                                  >
+                                    Lưu
+                                  </button>
+                                </td>
+                              </tr>
                             )}
                           </tbody>
                         </table>
                       </div>
 
+                      <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        {filterType !== 'invalid' && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (showManualRow) {
+                                addManualRow();
+                              } else {
+                                setShowManualRow(true);
+                              }
+                            }}
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#2563eb',
+                              fontWeight: '600',
+                              cursor: 'pointer',
+                              padding: '0',
+                              textDecoration: 'underline',
+                            }}
+                          >
+                            Thêm một dòng
+                          </button>
+                        )}
+                        {showManualRow && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowManualRow(false)
+                              setManualRow({
+                                name: '',
+                                phone: '',
+                                licensePlate: '',
+                                vehicleType: '',
+                                brand: '',
+                                ownership: '',
+                                paymentMethod: '',
+                              })
+                            }}
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#6b7280',
+                              cursor: 'pointer',
+                              padding: '0',
+                              textDecoration: 'underline',
+                            }}
+                          >
+                            Hủy
+                          </button>
+                        )}
+                      </div>
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
                         <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                           <button style={{ padding: '4px 12px', border: '1px solid #d1d5db', background: '#fff', borderRadius: '4px' }}>&lt;</button>
