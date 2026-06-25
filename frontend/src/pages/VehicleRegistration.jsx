@@ -745,6 +745,7 @@ export default function VehicleRegistration() {
       date_request: formData.effectiveDate,
       line_register_ids: lineRegisterIds
     }
+    console.log('Payload being sent:', payload)
     try {
       const res = await authFetch('/api/v1/office-parking', {
         method: 'POST',
@@ -755,13 +756,31 @@ export default function VehicleRegistration() {
         credentials: 'include',
         body: JSON.stringify(payload),
       })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json()
+      let data
+      try {
+        data = await res.json()
+        console.log('Response data (JSON):', data)
+      } catch (jsonErr) {
+        const textData = await res.text()
+        console.log('Response data (Text):', textData)
+        data = textData
+      }
+      if (!res.ok) {
+        console.error('Error response:', data)
+        const errorMsg = data?.result?.MESSAGE || data?.message || `HTTP ${res.status}`
+        throw new Error(errorMsg)
+      }
+      // Check if business logic error (even with 200 status)
+      const businessResult = data?.result
+      if (businessResult && businessResult.RESULT === 'ERROR') {
+        console.error('Business error:', businessResult)
+        throw new Error(businessResult.MESSAGE || 'Lỗi không xác định')
+      }
       alert('Dữ liệu đã được lưu thành công')
       navigate('/my/menu')
     } catch (err) {
       console.error('Error saving data:', err)
-      alert('Lưu dữ liệu thất bại, vui lòng thử lại')
+      alert(`Lưu dữ liệu thất bại: ${err.message || 'Vui lòng thử lại'}`)
     }
   }
 
@@ -912,7 +931,7 @@ export default function VehicleRegistration() {
           {renderCompanyRow()}
           {renderPremisesVehicleRow()}
 
-          {/* Loại sở hữu + Họ tên */}
+          {/* Loại sở hữu + Biển số xe */}
           <div className="form-input-row">
             <div className="form-group">
               <label className="form-label form-label-dark">Loại sở hữu</label>
@@ -942,12 +961,22 @@ export default function VehicleRegistration() {
               </div>
             </div>
             <div className="form-group">
-              <label className="form-label form-label-dark">Họ tên người sử dụng <span style={{ color: '#ef4444' }}>*</span></label>
-              <input type="text" name="userName" value={formData.userName} onChange={handleChange} placeholder="-Nhập-" className="form-input" />
+              <label className="form-label form-label-dark">Biển số xe <span style={{ color: '#ef4444' }}>*</span></label>
+              <input type="text" name="licensePlate" value={formData.licensePlate} onChange={handleChange} placeholder="-Nhập-" className="form-input" />
             </div>
           </div>
 
-          {renderUserRow()}
+          {/* Họ tên + SĐT */}
+          <div className="form-input-row">
+            <div className="form-group">
+              <label className="form-label form-label-dark">Họ tên người sử dụng <span style={{ color: '#ef4444' }}>*</span></label>
+              <input type="text" name="userName" value={formData.userName} onChange={handleChange} placeholder="-Nhập-" className="form-input" />
+            </div>
+            <div className="form-group">
+              <label className="form-label form-label-dark">Số điện thoại người sử dụng</label>
+              <input type="tel" name="phone" value={formData.phone} onChange={handleChange} placeholder="-Nhập-" className="form-input" />
+            </div>
+          </div>
           {renderFeePaymentRow()}
           {renderEffectiveDateRow()}
 
