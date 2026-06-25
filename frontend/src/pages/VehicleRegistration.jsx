@@ -407,44 +407,31 @@ export default function VehicleRegistration() {
 
   const handleSubmitNew = async (e) => {
     e.preventDefault()
-    const now = new Date()
-    const pad = (v) => String(v).padStart(2, '0')
-    const dateRequest = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`
-
-    const lineDocumentIds = requiredDocs.map((doc, index) => {
-      const documentId = doc.document_parking_card_id ?? doc.id ?? doc.code ?? index
-      // attachmentKey phải khớp với docId được dùng khi render (upload file)
-      const attachmentKey = String(doc.document_parking_card_id ?? doc.id ?? doc.code ?? index)
-      const attachmentId = docAttachmentIds[attachmentKey]
-      return [0, 0, {
-        document_parking_card_id: Number(documentId),
-        attachment_ids: attachmentId ? [attachmentId] : null,
-      }]
-    })
 
     const payload = {
-      type_partner: formData.typePartner,
-      vehicle_type_id: Number(formData.vehicleType),
-      license_plate: formData.licensePlate,
-      building_house_id: 1718,
       registration_type: formData.registrationType,
       registration_method: 'online',
-      registrant_id: Number(formData.company),
-      vehicle_user_id: Number(formData.company),
-      is_vip: false,
-      is_not_owner: !formData.ownershipType,
-      is_company_registration: false,
-      is_special: false,
+      house_id: Number(formData.buidingHouse),
+      contract_id: Number(formData.contract),
+      company_id: Number(formData.company),
+      date_request: formData.effectiveDate,
       note: formData.note,
-      date_request: dateRequest,
-      date_used: formData.effectiveDate,
-      time_return: 16.0,
-      time_return_to: 17.0,
-      line_document_ids: lineDocumentIds,
+      line_register_ids: [
+        {
+          is_not_owner: formData.ownershipType,
+          license_plate: formData.licensePlate,
+          registrant_name: formData.userName,
+          phone_number: formData.phone,
+          vehicle_type_id: Number(formData.vehicleType),
+          is_approved: false,
+          rejection_reason: '',
+          fee_building_config_id: Number(formData.feeConfig),
+        },
+      ],
     }
 
     try {
-      const res = await authFetch('/api/v1/parking/register', {
+      const res = await authFetch('/api/v1/office-parking', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -453,11 +440,25 @@ export default function VehicleRegistration() {
         credentials: 'include',
         body: JSON.stringify(payload),
       })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json()
-      alert('Phiếu đăng ký đã được tạo thành công')
+      let data
+      try {
+        data = await res.json()
+      } catch (jsonErr) {
+        const textData = await res.text()
+        data = textData
+      }
+      if (!res.ok) {
+        const errorMsg = data?.result?.MESSAGE || data?.message || `HTTP ${res.status}`
+        throw new Error(errorMsg)
+      }
+      const businessResult = data?.result
+      if (businessResult && businessResult.RESULT === 'ERROR') {
+        throw new Error(businessResult.MESSAGE || 'Lỗi không xác định')
+      }
+      alert('Dữ liệu đã được lưu thành công')
+      navigate('/my/menu')
     } catch (err) {
-      alert('Tạo phiếu đăng ký thất bại')
+      alert(`Lưu dữ liệu thất bại: ${err.message || 'Vui lòng thử lại'}`)
     }
   }
 
@@ -733,7 +734,7 @@ export default function VehicleRegistration() {
       phone_number: row.phone,
       vehicle_type_name: row.vehicleType,
       brand_name: row.brand,
-      is_approved: true,
+      is_approved: false,
       rejection_reason: ''
     }))
     const payload = {
@@ -789,9 +790,8 @@ export default function VehicleRegistration() {
     <>
       <div className="form-input-row">
         <div className="form-group">
-          <label className="form-label form-label-dark">Đối tượng đăng ký <span style={{ color: '#ef4444' }}>*</span></label>
-          <select name="typePartner" value={formData.typePartner} onChange={handleChange} className="form-input">
-            <option value="">-- Chọn đối tượng đăng ký --</option>
+          <label className="form-label form-label-dark">Đối tượng đăng ký</label>
+          <select name="typePartner" value={formData.typePartner} disabled className="form-input" style={{ backgroundColor: '#f3f4f6', cursor: 'not-allowed' }}>
             {typePartnerOptions.map((o) => {
               const val = o.value || o[0];
               const lbl = o.label || o[1];
@@ -844,7 +844,7 @@ export default function VehicleRegistration() {
     <div className="form-input-row">
       <div className="form-group">
         <label className="form-label form-label-dark">Mặt bằng thuê <span style={{ color: '#ef4444' }}>*</span></label>
-        <select name="premises" value={formData.buidingHouse} onChange={handleChange} className="form-input">
+        <select name="buidingHouse" value={formData.buidingHouse} onChange={handleChange} className="form-input">
           <option value="">{masterLoading ? 'Đang tải...' : '-- Chọn mặt bằng --'}</option>
           {buidingHouse.map((c) => (
             <option key={c.id} value={c.id}>{c.name}</option>
@@ -1023,12 +1023,6 @@ export default function VehicleRegistration() {
               </tr>
             </tbody>
           </table>
-        </div>
-
-        {/* Ghi chú */}
-        <div className="form-group">
-          <label className="form-label form-label-dark">Ghi chú</label>
-          <textarea placeholder="Nhập ghi chú" className="form-textarea" rows={4} style={{ minHeight: '100px' }} />
         </div>
       </div>
     </div>

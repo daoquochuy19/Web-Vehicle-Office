@@ -72,7 +72,7 @@ export function useMasterData() {
                 fields: ['id', 'name'],
                 domain: [
                   ['state', '=', 'active'],
-                  ['type_fee', '=', 'deposit'],
+                  ['object_type', '=', 'office'],
                 ],
                 limit: 200,
                 offset: 0,
