@@ -100,6 +100,8 @@ export default function VehicleRegistration() {
   const [editingRowId, setEditingRowId] = useState(null)
   const [tempRowData, setTempRowData] = useState({})
   const editingRowRef = useRef(null)
+  const [allocationInfo, setAllocationInfo] = useState(null)
+  const [allocationLoading, setAllocationLoading] = useState(false)
 
   const isChangePlate = formData.registrationType === REGISTRATION_TYPE_CHANGE_PLATE
   const isLockCard = formData.registrationType === REGISTRATION_TYPE_LOCK_CARD
@@ -160,6 +162,63 @@ export default function VehicleRegistration() {
     }
     fetchActivePlates()
   }, [isPlateSelectMode, formData.company])
+
+  // Fetch allocation info khi điền đầy đủ các trường trong Excel view
+  useEffect(() => {
+    if (mode === 'excel') {
+      fetchAllocationInfo(formData)
+    }
+  }, [mode, formData.registrationType, formData.company, formData.contract, formData.buidingHouse])
+
+  // Fetch thông tin định mức (dùng cho Excel import)
+  const fetchAllocationInfo = async (data) => {
+    if (!data.registrationType || !data.company || !data.contract || !data.buidingHouse) {
+      setAllocationInfo(null)
+      setAllocationLoading(false)
+      return
+    }
+
+    const conditions = {
+      registration_type: data.registrationType,
+      house_id: Number(data.buidingHouse),
+      contract_id: Number(data.contract),
+    }
+    setAllocationLoading(true)
+    try {
+      console.log('=== Calling get_allocation_info API ===')
+      console.log('Conditions:', conditions)
+      const res = await authFetch('/api/v1/rpc/office.parking/get_allocation_info', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          args: [],
+          kwargs: { conditions },
+        }),
+      })
+      console.log('Response status:', res.status)
+      if (!res.ok) {
+        const errorBody = await res.text()
+        console.error('get_allocation_info failed', res.status, errorBody)
+        throw new Error(`HTTP ${res.status}`)
+      }
+      const response = await res.json()
+      console.log('=== Full API Response ===')
+      console.log(JSON.stringify(response, null, 2))
+      console.log('=== Parsed result ===')
+      const result = response.result?.DATA || response.DATA || null
+      console.log('Allocation info result:', result)
+      setAllocationInfo(result)
+    } catch (err) {
+      console.error('Fetch allocation info error:', err)
+      setAllocationInfo(null)
+    } finally {
+      setAllocationLoading(false)
+    }
+  }
 
   // Fetch tài liệu yêu cầu (chỉ dùng cho cấp mới)
   const fetchRequiredDocuments = async (data) => {
@@ -1819,24 +1878,43 @@ export default function VehicleRegistration() {
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', color: '#111827' }}>
                       <thead>
                         <tr style={{ background: '#e5e7eb' }}>
-                          <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid #d1d5db' }}></th>
-                          <th style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #d1d5db' }}>Định mức</th>
-                          <th style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #d1d5db' }}>Thực tế</th>
-                          <th style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #d1d5db' }}>Ngoài định mức</th>
+                          <th style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}></th>
+                          <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Hợp đồng</th>
+                          <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Thực tế</th>
+                          <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Chờ xử lý</th>
+                          <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Vượt định mức</th>
                         </tr>
                       </thead>
                       <tbody>
                         <tr>
-                          <td style={{ padding: '8px', borderBottom: '1px solid #d1d5db' }}>Ô tô</td>
-                          <td style={{ padding: '8px', textAlign: 'center', fontWeight: 'bold', borderBottom: '1px solid #d1d5db' }}>100</td>
-                          <td style={{ padding: '8px', textAlign: 'center', fontWeight: 'bold', borderBottom: '1px solid #d1d5db' }}>55</td>
-                          <td style={{ padding: '8px', textAlign: 'center', fontWeight: 'bold', borderBottom: '1px solid #d1d5db' }}>0</td>
+                          <td style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}>Ô tô</td>
+                          <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
+                            {allocationLoading ? '...' : (allocationInfo?.allocation_car_quota ?? 0)}
+                          </td>
+                          <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
+                            {allocationLoading ? '...' : (allocationInfo?.allocation_car_actual ?? 0)}
+                          </td>
+                          <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
+                            {allocationLoading ? '...' : (allocationInfo?.allocation_car_pending ?? 0)}
+                          </td>
+                          <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
+                            {allocationLoading ? '...' : (allocationInfo?.allocation_car_exceeded ?? 0)}
+                          </td>
                         </tr>
                         <tr>
-                          <td style={{ padding: '8px', borderBottom: '1px solid #d1d5db' }}>Xe máy</td>
-                          <td style={{ padding: '8px', textAlign: 'center', fontWeight: 'bold', borderBottom: '1px solid #d1d5db' }}>75</td>
-                          <td style={{ padding: '8px', textAlign: 'center', fontWeight: 'bold', borderBottom: '1px solid #d1d5db' }}>30</td>
-                          <td style={{ padding: '8px', textAlign: 'center', fontWeight: 'bold', borderBottom: '1px solid #d1d5db' }}>30</td>
+                          <td style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}>Xe máy</td>
+                          <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
+                            {allocationLoading ? '...' : (allocationInfo?.allocation_motorbike_quota ?? 0)}
+                          </td>
+                          <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
+                            {allocationLoading ? '...' : (allocationInfo?.allocation_motorbike_actual ?? 0)}
+                          </td>
+                          <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
+                            {allocationLoading ? '...' : (allocationInfo?.allocation_motorbike_pending ?? 0)}
+                          </td>
+                          <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
+                            {allocationLoading ? '...' : (allocationInfo?.allocation_motorbike_exceeded ?? 0)}
+                          </td>
                         </tr>
                       </tbody>
                     </table>

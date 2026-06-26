@@ -18,9 +18,53 @@ export default function Menu() {
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
 
+  const currentUserId = useMemo(() => getCurrentUserId(), []);
+
   const handleLogout = () => {
     localStorage.removeItem('loggedIn');
     navigate('/');
+  };
+
+  const isCreatedByCurrentUser = (record) => {
+    if (!currentUserId) return true;
+
+    const ownerCandidates = [
+      record.create_uid,
+      record.created_by,
+      record.creator,
+      record.user_id,
+      record.registrant_id,
+      record.owner_id,
+    ];
+
+    return ownerCandidates.some((field) => {
+      if (!field) return false;
+      if (typeof field === 'object') {
+        return [field.id, field.uid, field.user_id].some(
+          (value) => value != null && String(value) === String(currentUserId)
+        );
+      }
+      return String(field) === String(currentUserId);
+    });
+  };
+
+  const isOnlineRegistration = (record) => {
+    if (!record) return false;
+
+    const method = record.registration_method;
+    if (!method) return false;
+
+    if (typeof method === 'string') {
+      return method.toLowerCase() === 'online';
+    }
+
+    if (typeof method === 'object') {
+      return [method.key, method.label, method.name]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase() === 'online');
+    }
+
+    return false;
   };
 
   useEffect(() => {
@@ -39,7 +83,8 @@ export default function Menu() {
         }
         const data = await res.json();
         if (data.result?.RESULT === 'SUCCESS' || data.result?.STATUS_CODE === '0000') {
-          setRecords(data.result?.DATA?.items || []);
+          const items = data.result?.DATA?.items || [];
+          setRecords(items.filter((item) => isCreatedByCurrentUser(item) && isOnlineRegistration(item)));
         } else {
           throw new Error(data.result?.MESSAGE || 'Failed to fetch data');
         }
@@ -50,7 +95,7 @@ export default function Menu() {
       }
     }
     fetchData();
-  }, []);
+  }, [currentUserId]);
 
   // Get unique registration types, statuses, and houses from records for filter options
   const { registrationTypes, statuses, houses } = useMemo(() => {
