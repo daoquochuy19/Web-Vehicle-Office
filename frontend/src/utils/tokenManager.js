@@ -73,3 +73,13 @@ export function isRefreshTokenValid() {
   if (!payload?.exp) return false
   return payload.exp * 1000 > Date.now()
 }
+
+/**
+ * Lấy user_id từ access token payload.
+ */
+export function getCurrentUserId() {
+  const token = getAccessToken()
+  if (!token) return null
+  const payload = decodeJwtPayload(token)
+  return payload?.user_id ?? payload?.uid ?? null
+}
