@@ -362,7 +362,18 @@ export default function Menu() {
                     </tr>
                   ) : (
                     filteredRecords.map((record, index) => (
-                      <tr key={record.id}>
+                      <tr 
+                        key={record.id}
+                        style={{ cursor: 'pointer', transition: 'background-color 0.2s ease' }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e0f2fe'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                        onClick={() => navigate('/my/vehicle-registration', { 
+                          state: { 
+                            mode: 'excel', 
+                            selectedRecord: record 
+                          } 
+                        })}
+                      >
                         <td>{index + 1}</td>
                         <td>{record.registration_type?.label || ''}</td>
                         <td>{record.date_request_display || ''}</td>

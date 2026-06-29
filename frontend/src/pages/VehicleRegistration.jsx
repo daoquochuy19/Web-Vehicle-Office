@@ -38,6 +38,8 @@ export default function VehicleRegistration() {
 
   // --- Get mode from navigation state ---
   const mode = location.state?.mode || 'manual'
+  const selectedRecord = location.state?.selectedRecord || null
+  const isViewMode = !!selectedRecord
 
   // --- State form chung ---
   const [formData, setFormData] = useState({
@@ -102,6 +104,8 @@ export default function VehicleRegistration() {
   const editingRowRef = useRef(null)
   const [allocationInfo, setAllocationInfo] = useState(null)
   const [allocationLoading, setAllocationLoading] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
 
   const isChangePlate = formData.registrationType === REGISTRATION_TYPE_CHANGE_PLATE
   const isLockCard = formData.registrationType === REGISTRATION_TYPE_LOCK_CARD
@@ -118,6 +122,39 @@ export default function VehicleRegistration() {
       navigate('/', { replace: true })
     }
   }, [navigate])
+
+  // Populate form with selected record data when available
+  useEffect(() => {
+    if (selectedRecord) {
+      setFormData(prev => ({
+        ...prev,
+        registrationType: selectedRecord.registration_type?.key || '',
+        company: selectedRecord.company_id?.id || '',
+        contract: selectedRecord.contract_id?.id || '',
+        buidingHouse: selectedRecord.house_id?.id || '',
+        effectiveDate: selectedRecord.date_request?.split(' ')[0] || '',
+        note: selectedRecord.note || ''
+      }))
+
+      // Populate line items
+      if (selectedRecord.line_register_ids && Array.isArray(selectedRecord.line_register_ids)) {
+        const lines = selectedRecord.line_register_ids.map((line, index) => ({
+          id: `${Date.now()}-${index}`,
+          stt: index + 1,
+          name: line.registrant_id?.name || '',
+          phone: line.phone_number || '',
+          licensePlate: line.license_plate || '',
+          vehicleType: line.vehicle_type_id?.name || '',
+          brand: line.brand_id?.name || '',
+          ownership: line.is_not_owner ? 'Không chính chủ' : 'Chính chủ',
+          paymentMethod: '',
+          isValid: true,
+          errors: []
+        }))
+        setParsedData(lines)
+      }
+    }
+  }, [selectedRecord])
 
   // Fetch danh sách biển xe active khi mode đổi biển hoặc khóa thẻ + đã chọn công ty
   useEffect(() => {
@@ -192,8 +229,6 @@ export default function VehicleRegistration() {
     }
     setAllocationLoading(true)
     try {
-      console.log('=== Calling get_allocation_info API ===')
-      console.log('Conditions:', conditions)
       const res = await authFetch('/api/v1/rpc/office.parking/get_allocation_info', {
         method: 'POST',
         headers: {
@@ -206,18 +241,13 @@ export default function VehicleRegistration() {
           kwargs: { conditions },
         }),
       })
-      console.log('Response status:', res.status)
       if (!res.ok) {
         const errorBody = await res.text()
         console.error('get_allocation_info failed', res.status, errorBody)
         throw new Error(`HTTP ${res.status}`)
       }
       const response = await res.json()
-      console.log('=== Full API Response ===')
-      console.log(JSON.stringify(response, null, 2))
-      console.log('=== Parsed result ===')
       const result = response.result?.DATA || response.DATA || null
-      console.log('Allocation info result:', result)
       setAllocationInfo(result)
     } catch (err) {
       console.error('Fetch allocation info error:', err)
@@ -468,12 +498,43 @@ export default function VehicleRegistration() {
   const invalidCount = parsedData.filter(d => !d.isValid).length;
   const showErrorColumn = filterType !== 'valid';
 
-  const displayedData = parsedData.filter(d => {
+  const filteredData = parsedData.filter(d => {
     if (filterType === 'all') return true;
     if (filterType === 'valid') return d.isValid;
     if (filterType === 'invalid') return !d.isValid;
     return true;
   });
+
+  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const displayedData = filteredData.slice(startIndex, endIndex);
+
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+  };
+
+  const handleItemsPerPageChange = (e) => {
+    const newItemsPerPage = parseInt(e.target.value);
+    setItemsPerPage(newItemsPerPage);
+    setCurrentPage(1);
+  };
+
+  const handlePrevPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterType]);
 
   const removeRow = (id) => {
     setParsedData(prev => prev.filter(row => row.id !== id).map((row, idx) => ({ ...row, stt: idx + 1 })));
@@ -518,6 +579,8 @@ export default function VehicleRegistration() {
     setEditingRowId(null)
     setTempRowData({})
   }
+
+
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -1846,7 +1909,107 @@ export default function VehicleRegistration() {
             renderReissueForm(handleSubmitLostReissue, false)
 
           ) : (
-            mode === 'excel' ? (
+            isViewMode ? (
+              /* ════════════ VIEW RECORD DETAIL ════════════ */
+              <div style={{ backgroundColor: '#fff', borderRadius: '16px', width: '100%', maxWidth: '1200px', margin: '0 auto', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+
+
+                <div style={{ padding: '32px' }}>
+                  {/* Form Information */}
+                  <div style={{ marginBottom: '32px' }}>
+                    <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#334155', marginBottom: '20px', paddingBottom: '12px', borderBottom: '2px solid #f1f5f9' }}>Thông tin chung</h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '6px', color: '#64748b', fontWeight: 500 }}>Hình thức đăng ký</label>
+                        <input 
+                          type="text" 
+                          value={selectedRecord?.registration_type?.label || ''} 
+                          readOnly 
+                          style={{ width: '100%', padding: '12px', border: '1px solid #e2e8f0', borderRadius: '8px', background: '#f8fafc', fontSize: '0.875rem', color: '#1e293b' }} 
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '6px', color: '#64748b', fontWeight: 500 }}>Ngày đăng ký sử dụng</label>
+                        <input 
+                          type="text" 
+                          value={selectedRecord?.date_request_display || ''} 
+                          readOnly 
+                          style={{ width: '100%', padding: '12px', border: '1px solid #e2e8f0', borderRadius: '8px', background: '#f8fafc', fontSize: '0.875rem', color: '#1e293b' }} 
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '6px', color: '#64748b', fontWeight: 500 }}>Tên công ty</label>
+                        <input 
+                          type="text" 
+                          value={selectedRecord?.company_id?.name || ''} 
+                          readOnly 
+                          style={{ width: '100%', padding: '12px', border: '1px solid #e2e8f0', borderRadius: '8px', background: '#f8fafc', fontSize: '0.875rem', color: '#1e293b' }} 
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '6px', color: '#64748b', fontWeight: 500 }}>Số hợp đồng</label>
+                        <input 
+                          type="text" 
+                          value={selectedRecord?.contract_id?.name || ''} 
+                          readOnly 
+                          style={{ width: '100%', padding: '12px', border: '1px solid #e2e8f0', borderRadius: '8px', background: '#f8fafc', fontSize: '0.875rem', color: '#1e293b' }} 
+                        />
+                      </div>
+                      <div style={{ gridColumn: 'span 1' }}>
+                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '6px', color: '#64748b', fontWeight: 500 }}>Mặt bằng thuê</label>
+                        <input 
+                          type="text" 
+                          value={selectedRecord?.house_id?.name || ''} 
+                          readOnly 
+                          style={{ width: '100%', padding: '12px', border: '1px solid #e2e8f0', borderRadius: '8px', background: '#f8fafc', fontSize: '0.875rem', color: '#1e293b' }} 
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Line Items Table */}
+                  <div>
+                    <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#334155', marginBottom: '20px', paddingBottom: '12px', borderBottom: '2px solid #f1f5f9' }}>Danh sách đăng ký</h3>
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', color: '#1e293b' }}>
+                        <thead>
+                          <tr style={{ background: '#f8fafc' }}>
+                            <th style={{ padding: '14px 12px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', fontWeight: 700, color: '#1e293b' }}>STT</th>
+                            <th style={{ padding: '14px 12px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', fontWeight: 700, color: '#1e293b' }}>Tên nhân viên</th>
+                            <th style={{ padding: '14px 12px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', fontWeight: 700, color: '#1e293b' }}>Số điện thoại</th>
+                            <th style={{ padding: '14px 12px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', fontWeight: 700, color: '#1e293b' }}>Biển kiểm soát</th>
+                            <th style={{ padding: '14px 12px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', fontWeight: 700, color: '#1e293b' }}>Loại xe</th>
+                            <th style={{ padding: '14px 12px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', fontWeight: 700, color: '#1e293b' }}>Hãng xe</th>
+                            <th style={{ padding: '14px 12px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', fontWeight: 700, color: '#1e293b' }}>Loại sở hữu</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {parsedData.length > 0 ? (
+                            parsedData.map((row, index) => (
+                              <tr key={row.id} style={{ background: index % 2 === 0 ? '#fff' : '#fafafa' }}>
+                                <td style={{ padding: '12px', borderBottom: '1px solid #e2e8f0' }}>{row.stt}</td>
+                                <td style={{ padding: '12px', borderBottom: '1px solid #e2e8f0' }}>{row.name}</td>
+                                <td style={{ padding: '12px', borderBottom: '1px solid #e2e8f0' }}>{row.phone}</td>
+                                <td style={{ padding: '12px', borderBottom: '1px solid #e2e8f0' }}>{row.licensePlate}</td>
+                                <td style={{ padding: '12px', borderBottom: '1px solid #e2e8f0' }}>{row.vehicleType}</td>
+                                <td style={{ padding: '12px', borderBottom: '1px solid #e2e8f0' }}>{row.brand}</td>
+                                <td style={{ padding: '12px', borderBottom: '1px solid #e2e8f0' }}>{row.ownership}</td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan={7} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '0.875rem' }}>
+                                Không có dữ liệu
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : mode === 'excel' ? (
               /* ════════════ VIEW EXCEL IMPORT ════════════ */
               <div style={{ backgroundColor: '#fff', borderRadius: '8px', width: '100%', maxWidth: '1200px', margin: '0 auto', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', overflow: 'hidden', height: 'fit-content' }}>
               <div style={{ backgroundColor: '#f3f4f6', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -2146,7 +2309,9 @@ export default function VehicleRegistration() {
                                 <tr 
                                   key={row.id} 
                                   ref={isEditing ? editingRowRef : null}
-                                  style={{ background: idx % 2 === 0 ? 'transparent' : '#f9fafb' }}>
+                                  style={{ 
+                                    background: idx % 2 === 0 ? 'transparent' : '#f9fafb'
+                                  }}>
                                   <td style={{ padding: '12px 8px', border: 'none', textAlign: 'center' }}>{row.stt}</td>
                                   <td style={{ padding: '12px 8px', border: 'none' }}>
                                     {isEditing ? (
@@ -2157,7 +2322,7 @@ export default function VehicleRegistration() {
                                         style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: '4px', outline: 'none' }}
                                       />
                                     ) : (
-                                      <span onClick={() => startEditRow(row)} style={{ cursor: 'pointer', display: 'block', width: '100%' }}>{row.name}</span>
+                                      <span style={{ display: 'block', width: '100%' }}>{row.name}</span>
                                     )}
                                   </td>
                                   <td style={{ padding: '12px 8px', border: 'none' }}>
@@ -2169,7 +2334,7 @@ export default function VehicleRegistration() {
                                         style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: '4px', outline: 'none' }}
                                       />
                                     ) : (
-                                      <span onClick={() => startEditRow(row)} style={{ cursor: 'pointer', display: 'block', width: '100%' }}>{row.phone}</span>
+                                      <span style={{ display: 'block', width: '100%' }}>{row.phone}</span>
                                     )}
                                   </td>
                                   <td style={{ padding: '12px 8px', border: 'none' }}>
@@ -2181,7 +2346,7 @@ export default function VehicleRegistration() {
                                         style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: '4px', outline: 'none' }}
                                       />
                                     ) : (
-                                      <span onClick={() => startEditRow(row)} style={{ cursor: 'pointer', display: 'block', width: '100%' }}>{row.licensePlate}</span>
+                                      <span style={{ display: 'block', width: '100%' }}>{row.licensePlate}</span>
                                     )}
                                   </td>
                                   <td style={{ padding: '12px 8px', border: 'none' }}>
@@ -2193,7 +2358,7 @@ export default function VehicleRegistration() {
                                         style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: '4px', outline: 'none' }}
                                       />
                                     ) : (
-                                      <span onClick={() => startEditRow(row)} style={{ cursor: 'pointer', display: 'block', width: '100%' }}>{row.vehicleType}</span>
+                                      <span style={{ display: 'block', width: '100%' }}>{row.vehicleType}</span>
                                     )}
                                   </td>
                                   <td style={{ padding: '12px 8px', border: 'none' }}>
@@ -2205,7 +2370,7 @@ export default function VehicleRegistration() {
                                         style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: '4px', outline: 'none' }}
                                       />
                                     ) : (
-                                      <span onClick={() => startEditRow(row)} style={{ cursor: 'pointer', display: 'block', width: '100%' }}>{row.brand}</span>
+                                      <span style={{ display: 'block', width: '100%' }}>{row.brand}</span>
                                     )}
                                   </td>
                                   <td style={{ padding: '12px 8px', border: 'none' }}>
@@ -2220,7 +2385,7 @@ export default function VehicleRegistration() {
                                         <option value="Không chính chủ">Không chính chủ</option>
                                       </select>
                                     ) : (
-                                      <span onClick={() => startEditRow(row)} style={{ cursor: 'pointer', display: 'block', width: '100%' }}>{row.ownership}</span>
+                                      <span style={{ display: 'block', width: '100%' }}>{row.ownership}</span>
                                     )}
                                   </td>
                                   <td style={{ padding: '12px 8px', border: 'none' }}>
@@ -2232,7 +2397,7 @@ export default function VehicleRegistration() {
                                         style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: '4px', outline: 'none' }}
                                       />
                                     ) : (
-                                      <span onClick={() => startEditRow(row)} style={{ cursor: 'pointer', display: 'block', width: '100%' }}>{row.paymentMethod}</span>
+                                      <span style={{ display: 'block', width: '100%' }}>{row.paymentMethod}</span>
                                     )}
                                   </td>
                                   {showErrorColumn && (
@@ -2432,12 +2597,59 @@ export default function VehicleRegistration() {
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
                         <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                          <button style={{ padding: '4px 12px', border: '1px solid #d1d5db', background: '#fff', borderRadius: '4px' }}>&lt;</button>
-                          <button style={{ padding: '4px 12px', border: '1px solid #d1d5db', background: '#e5e7eb', borderRadius: '4px' }}>1</button>
-                          <button style={{ padding: '4px 12px', border: '1px solid #d1d5db', background: '#fff', borderRadius: '4px' }}>2</button>
-                          <button style={{ padding: '4px 12px', border: '1px solid #d1d5db', background: '#fff', borderRadius: '4px' }}>&gt;</button>
-                          <select style={{ padding: '4px 8px', border: '1px solid #d1d5db', background: '#fff', borderRadius: '4px', marginLeft: '8px' }}>
-                            <option>10/trang</option>
+                          <button 
+                            onClick={handlePrevPage}
+                            disabled={currentPage === 1}
+                            style={{ 
+                              padding: '4px 12px', 
+                              border: '1px solid #d1d5db', 
+                              background: currentPage === 1 ? '#f3f4f6' : '#fff', 
+                              borderRadius: '4px',
+                              cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                              color: currentPage === 1 ? '#9ca3af' : '#374151'
+                            }}
+                          >
+                            &lt;
+                          </button>
+                          {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                            <button
+                              key={page}
+                              onClick={() => handlePageChange(page)}
+                              style={{
+                                padding: '4px 12px',
+                                border: '1px solid #d1d5db',
+                                background: currentPage === page ? '#e5e7eb' : '#fff',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                color: currentPage === page ? '#111827' : '#374151'
+                              }}
+                            >
+                              {page}
+                            </button>
+                          ))}
+                          <button 
+                            onClick={handleNextPage}
+                            disabled={currentPage === totalPages || totalPages === 0}
+                            style={{ 
+                              padding: '4px 12px', 
+                              border: '1px solid #d1d5db', 
+                              background: currentPage === totalPages || totalPages === 0 ? '#f3f4f6' : '#fff', 
+                              borderRadius: '4px',
+                              cursor: currentPage === totalPages || totalPages === 0 ? 'not-allowed' : 'pointer',
+                              color: currentPage === totalPages || totalPages === 0 ? '#9ca3af' : '#374151'
+                            }}
+                          >
+                            &gt;
+                          </button>
+                          <select 
+                            value={itemsPerPage}
+                            onChange={handleItemsPerPageChange}
+                            style={{ padding: '4px 8px', border: '1px solid #d1d5db', background: '#fff', borderRadius: '4px', marginLeft: '8px' }}
+                          >
+                            <option value={5}>5/trang</option>
+                            <option value={10}>10/trang</option>
+                            <option value={20}>20/trang</option>
+                            <option value={50}>50/trang</option>
                           </select>
                         </div>
                       </div>
