@@ -59,7 +59,7 @@ export function useMasterData() {
               {
                 key: 'vehicle_types',
                 model: 'vehicle.type',
-                fields: ['id', 'name'],
+                fields: ['id', 'name', 'is_electric', 'is_motorbike', 'is_car'],
                 domain: [],
                 limit: 200,
                 offset: 0,
@@ -119,7 +119,7 @@ export function useMasterData() {
         })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const data = await res.json()
-        console.log('trạng thái call:', data)
+        console.log('Data:', data)
 
         const result = data.result?.DATA || {}
 

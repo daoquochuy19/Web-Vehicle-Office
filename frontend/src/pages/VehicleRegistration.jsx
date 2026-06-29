@@ -170,6 +170,13 @@ export default function VehicleRegistration() {
     }
   }, [mode, formData.registrationType, formData.company, formData.contract, formData.buidingHouse])
 
+  // Fetch allocation info khi điền đầy đủ các trường trong Manual view
+  useEffect(() => {
+    if (mode === 'manual' || (!mode && formData.registrationType === 'create')) {
+      fetchAllocationInfo(formData)
+    }
+  }, [mode, formData.registrationType, formData.company, formData.contract, formData.buidingHouse])
+
   // Fetch thông tin định mức (dùng cho Excel import)
   const fetchAllocationInfo = async (data) => {
     if (!data.registrationType || !data.company || !data.contract || !data.buidingHouse) {
@@ -1186,29 +1193,94 @@ export default function VehicleRegistration() {
             <thead>
               <tr style={{ background: '#e5e7eb' }}>
                 <th style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}></th>
-                <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Định mức</th>
+                <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Hợp đồng</th>
                 <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Thực tế</th>
-                <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Ngoài định mức</th>
+                <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Chờ xử lý</th>
+                <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Vượt định mức</th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td style={{ padding: '12px 8px', border: '1px solid #d1d5db', fontWeight: 'bold' }}>24VP.15 (1000m2)</td>
-                <td style={{ padding: '12px 8px', textAlign: 'center', background: '#dc2626', color: 'white', fontWeight: 'bold', border: '1px solid #d1d5db' }}></td>
-                <td style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}></td>
-                <td style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}></td>
-              </tr>
-              <tr>
                 <td style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}>Ô tô</td>
-                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}></td>
-                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}></td>
-                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}></td>
+                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
+                  {allocationLoading ? '...' : (allocationInfo?.allocation_car_quota ?? 0)}
+                </td>
+                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
+                  {allocationLoading ? '...' : (allocationInfo?.allocation_car_actual ?? 0)}
+                </td>
+                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
+                  {(() => {
+                    if (allocationLoading) return '...'
+                    const basePending = allocationInfo?.allocation_car_pending ?? 0
+                    const selectedVehicleType = vehicleTypeOptions.find(v => v.id === Number(formData.vehicleType))
+                    const isCar = selectedVehicleType?.is_car
+                    return isCar ? basePending + 1 : basePending
+                  })()}
+                </td>
+                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db', color: (() => {
+                  if (allocationLoading) return '#111827'
+                  const quota = allocationInfo?.allocation_car_quota ?? 0
+                  const actual = allocationInfo?.allocation_car_actual ?? 0
+                  const basePending = allocationInfo?.allocation_car_pending ?? 0
+                  const selectedVehicleType = vehicleTypeOptions.find(v => v.id === Number(formData.vehicleType))
+                  const isCar = selectedVehicleType?.is_car
+                  const pending = isCar ? basePending + 1 : basePending
+                  const exceeded = (actual + pending) - quota
+                  return exceeded > 0 ? '#dc2626' : '#111827'
+                })() }}>
+                  {(() => {
+                    if (allocationLoading) return '...'
+                    const quota = allocationInfo?.allocation_car_quota ?? 0
+                    const actual = allocationInfo?.allocation_car_actual ?? 0
+                    const basePending = allocationInfo?.allocation_car_pending ?? 0
+                    const selectedVehicleType = vehicleTypeOptions.find(v => v.id === Number(formData.vehicleType))
+                    const isCar = selectedVehicleType?.is_car
+                    const pending = isCar ? basePending + 1 : basePending
+                    const exceeded = (actual + pending) - quota
+                    return exceeded > 0 ? exceeded : 0
+                  })()}
+                </td>
               </tr>
               <tr>
                 <td style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}>Xe máy</td>
-                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}></td>
-                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}></td>
-                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}></td>
+                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
+                  {allocationLoading ? '...' : (allocationInfo?.allocation_motorbike_quota ?? 0)}
+                </td>
+                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
+                  {allocationLoading ? '...' : (allocationInfo?.allocation_motorbike_actual ?? 0)}
+                </td>
+                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
+                  {(() => {
+                    if (allocationLoading) return '...'
+                    const basePending = allocationInfo?.allocation_motorbike_pending ?? 0
+                    const selectedVehicleType = vehicleTypeOptions.find(v => v.id === Number(formData.vehicleType))
+                    const isMotorbike = selectedVehicleType?.is_motorbike
+                    return isMotorbike ? basePending + 1 : basePending
+                  })()}
+                </td>
+                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db', color: (() => {
+                  if (allocationLoading) return '#111827'
+                  const quota = allocationInfo?.allocation_motorbike_quota ?? 0
+                  const actual = allocationInfo?.allocation_motorbike_actual ?? 0
+                  const basePending = allocationInfo?.allocation_motorbike_pending ?? 0
+                  const selectedVehicleType = vehicleTypeOptions.find(v => v.id === Number(formData.vehicleType))
+                  const isMotorbike = selectedVehicleType?.is_motorbike
+                  const pending = isMotorbike ? basePending + 1 : basePending
+                  const exceeded = (actual + pending) - quota
+                  return exceeded > 0 ? '#dc2626' : '#111827'
+                })() }}>
+                  {(() => {
+                    if (allocationLoading) return '...'
+                    const quota = allocationInfo?.allocation_motorbike_quota ?? 0
+                    const actual = allocationInfo?.allocation_motorbike_actual ?? 0
+                    const basePending = allocationInfo?.allocation_motorbike_pending ?? 0
+                    const selectedVehicleType = vehicleTypeOptions.find(v => v.id === Number(formData.vehicleType))
+                    const isMotorbike = selectedVehicleType?.is_motorbike
+                    const pending = isMotorbike ? basePending + 1 : basePending
+                    const exceeded = (actual + pending) - quota
+                    return exceeded > 0 ? exceeded : 0
+                  })()}
+                </td>
               </tr>
             </tbody>
           </table>
@@ -1897,7 +1969,7 @@ export default function VehicleRegistration() {
                           <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
                             {allocationLoading ? '...' : (allocationInfo?.allocation_car_pending ?? 0)}
                           </td>
-                          <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
+                          <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db', color: (allocationLoading ? false : (allocationInfo?.allocation_car_exceeded ?? 0) > 0) ? '#dc2626' : '#111827' }}>
                             {allocationLoading ? '...' : (allocationInfo?.allocation_car_exceeded ?? 0)}
                           </td>
                         </tr>
@@ -1912,7 +1984,7 @@ export default function VehicleRegistration() {
                           <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
                             {allocationLoading ? '...' : (allocationInfo?.allocation_motorbike_pending ?? 0)}
                           </td>
-                          <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
+                          <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db', color: (allocationLoading ? false : (allocationInfo?.allocation_motorbike_exceeded ?? 0) > 0) ? '#dc2626' : '#111827' }}>
                             {allocationLoading ? '...' : (allocationInfo?.allocation_motorbike_exceeded ?? 0)}
                           </td>
                         </tr>
