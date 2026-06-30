@@ -32,6 +32,8 @@ export default function VehicleRegistration() {
     feeConfigOptions,
     contractApartments,
     buidingHouse,
+    fleetVehicleModelBrand,
+    paymentTypeOptions,
     loading: masterLoading,
     error: masterError,
   } = useMasterData()
@@ -2483,24 +2485,30 @@ export default function VehicleRegistration() {
                                   />
                                 </td>
                                 <td style={{ padding: '12px 8px', border: 'none' }}>
-                                  <input
-                                    type="text"
+                                  <select
                                     name="vehicleType"
                                     value={manualRow.vehicleType}
                                     onChange={handleManualRowChange}
-                                    placeholder="Nhập loại xe..."
                                     style={{ width: '100%', border: 'none', outline: 'none', minHeight: '38px', background: 'transparent' }}
-                                  />
+                                  >
+                                    <option value="">Chọn loại xe...</option>
+                                    {vehicleTypeOptions.map(option => (
+                                      <option key={option.id} value={option.name}>{option.name}</option>
+                                    ))}
+                                  </select>
                                 </td>
                                 <td style={{ padding: '12px 8px', border: 'none' }}>
-                                  <input
-                                    type="text"
+                                  <select
                                     name="brand"
                                     value={manualRow.brand}
                                     onChange={handleManualRowChange}
-                                    placeholder="Nhập hãng..."
                                     style={{ width: '100%', border: 'none', outline: 'none', minHeight: '38px', background: 'transparent' }}
-                                  />
+                                  >
+                                    <option value="">Chọn hãng xe...</option>
+                                    {fleetVehicleModelBrand.map(option => (
+                                      <option key={option.id} value={option.name}>{option.name}</option>
+                                    ))}
+                                  </select>
                                 </td>
                                 <td style={{ padding: '12px 8px', border: 'none' }}>
                                   <select
@@ -2515,14 +2523,17 @@ export default function VehicleRegistration() {
                                   </select>
                                 </td>
                                 <td style={{ padding: '12px 8px', border: 'none' }}>
-                                  <input
-                                    type="text"
+                                  <select
                                     name="paymentMethod"
                                     value={manualRow.paymentMethod}
                                     onChange={handleManualRowChange}
-                                    placeholder="Thanh toán..."
                                     style={{ width: '100%', border: 'none', outline: 'none', minHeight: '38px', background: 'transparent' }}
-                                  />
+                                  >
+                                    <option value="">Chọn thanh toán...</option>
+                                    {paymentTypeOptions.map(option => (
+                                      <option key={option.value} value={option.label}>{option.label}</option>
+                                    ))}
+                                  </select>
                                 </td>
                                 {showErrorColumn && <td style={{ padding: '12px 8px', border: 'none' }}></td>}
                                 <td style={{ padding: '12px 8px', border: 'none', textAlign: 'center' }}>

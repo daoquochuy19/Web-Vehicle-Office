@@ -30,6 +30,8 @@ export function useMasterData() {
   const [feeConfigOptions, setFeeConfigOptions] = useState([])
   const [contractApartments, setContractApartments] = useState([])
   const [buidingHouse, setBuildingHouse] = useState([])
+  const [fleetVehicleModelBrand, setFleetVehicleModelBrand] = useState([])
+  const [paymentTypeOptions, setPaymentTypeOptions] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -102,6 +104,17 @@ export function useMasterData() {
                 order: 'name asc',
                 depth: 0,
               },
+              {
+                key: 'fleet_vehicle_model_brand',
+                model: 'fleet.vehicle.model.brand',
+                fields: ['id', 'name'],
+                domain: [
+                ],
+                limit: 200,
+                offset: 0,
+                order: 'name asc',
+                depth: 0,
+              },
             ],
             selections: [
               {
@@ -113,6 +126,11 @@ export function useMasterData() {
                 key: 'registration_type_options',
                 model: 'vehicle.card.register',
                 field: 'registration_type',
+              },
+              {
+                key: 'payment_type_options',
+                model: 'vehicle.card.register',
+                field: 'x_payment_type',
               },
             ],
           }),
@@ -136,6 +154,8 @@ export function useMasterData() {
 
         setVehicleTypeOptions(result.vehicle_types ?? [])
         setFeeConfigOptions(result.fee_configs ?? [])
+        setFleetVehicleModelBrand(result.fleet_vehicle_model_brand ?? [])
+        setPaymentTypeOptions(result.payment_type_options ?? [])
       } catch (err) {
         console.error('Fetch master data error:', err)
         setError('Không thể tải cấu hình dữ liệu')
@@ -159,5 +179,7 @@ export function useMasterData() {
     loading,
     error,
     buidingHouse,
+    fleetVehicleModelBrand,
+    paymentTypeOptions,
   }
 }
