@@ -28,7 +28,6 @@ export default function VehicleRegistration() {
     typePartnerOptions,
     registrationTypeOptions,
     vehicleTypeOptions,
-    feeConfigOptions,
     contractApartments,
     buidingHouse,
     fleetVehicleModelBrand,
@@ -145,7 +144,7 @@ export default function VehicleRegistration() {
           licensePlate: line.license_plate || '',
           vehicleType: line.vehicle_type_id?.name || '',
           brand: line.brand_id?.name || '',
-          ownership: line.is_not_owner ? 'Không chính chủ' : 'Chính chủ',
+          parkingThirtyMin: (line.x_is_free_exit_30min || line.is_parking_30_min) ? 'Có' : 'Không',
           paymentMethod: '',
           isValid: true,
           errors: []
@@ -199,12 +198,12 @@ export default function VehicleRegistration() {
     fetchActivePlates()
   }, [isPlateSelectMode, formData.company])
 
-  // Fetch allocation info khi điền đầy đủ các trường trong Excel view
+  // Fetch allocation info khi điền đầy đủ các trường trong Excel view hoặc đang view chi tiết bản ghi
   useEffect(() => {
-    if (mode === 'excel') {
+    if (mode === 'excel' || isViewMode) {
       fetchAllocationInfo(formData)
     }
-  }, [mode, formData.registrationType, formData.company, formData.contract, formData.buidingHouse])
+  }, [mode, isViewMode, formData.registrationType, formData.company, formData.contract, formData.buidingHouse])
 
   // Fetch thông tin định mức (dùng cho Excel import)
   const fetchAllocationInfo = async (data) => {
@@ -239,7 +238,9 @@ export default function VehicleRegistration() {
         throw new Error(`HTTP ${res.status}`)
       }
       const response = await res.json()
+      console.log('get_allocation_info response:', response)
       const result = response.result?.DATA || response.DATA || null
+      console.log('get_allocation_info parsed result:', result)
       setAllocationInfo(result)
     } catch (err) {
       console.error('Fetch allocation info error:', err)
@@ -1655,94 +1656,167 @@ export default function VehicleRegistration() {
           ) : (
             isViewMode ? (
               /* ════════════ VIEW RECORD DETAIL ════════════ */
-              <div style={{ backgroundColor: '#fff', borderRadius: '16px', width: '100%', maxWidth: '1200px', margin: '0 auto', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+              <div style={{ backgroundColor: '#fff', borderRadius: '8px', width: '100%', maxWidth: '1200px', margin: '0 auto', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', overflow: 'hidden', height: 'fit-content' }}>
+                <div style={{ backgroundColor: '#f3f4f6', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 'bold', color: '#374151' }}>Chi tiết thông tin đăng ký</h2>
+                </div>
 
-
-                <div style={{ padding: '32px' }}>
-                  {/* Form Information */}
-                  <div style={{ marginBottom: '32px' }}>
-                    <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#334155', marginBottom: '20px', paddingBottom: '12px', borderBottom: '2px solid #f1f5f9' }}>Thông tin chung</h3>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px' }}>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '6px', color: '#64748b', fontWeight: 500 }}>Hình thức đăng ký</label>
-                        <input 
-                          type="text" 
-                          value={selectedRecord?.registration_type?.label || ''} 
-                          readOnly 
-                          style={{ width: '100%', padding: '12px', border: '1px solid #e2e8f0', borderRadius: '8px', background: '#f8fafc', fontSize: '0.875rem', color: '#1e293b' }} 
-                        />
-                      </div>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '6px', color: '#64748b', fontWeight: 500 }}>Ngày đăng ký sử dụng</label>
-                        <input 
-                          type="text" 
-                          value={selectedRecord?.date_request_display || ''} 
-                          readOnly 
-                          style={{ width: '100%', padding: '12px', border: '1px solid #e2e8f0', borderRadius: '8px', background: '#f8fafc', fontSize: '0.875rem', color: '#1e293b' }} 
-                        />
-                      </div>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '6px', color: '#64748b', fontWeight: 500 }}>Tên công ty</label>
-                        <input 
-                          type="text" 
-                          value={selectedRecord?.company_id?.name || ''} 
-                          readOnly 
-                          style={{ width: '100%', padding: '12px', border: '1px solid #e2e8f0', borderRadius: '8px', background: '#f8fafc', fontSize: '0.875rem', color: '#1e293b' }} 
-                        />
-                      </div>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '6px', color: '#64748b', fontWeight: 500 }}>Số hợp đồng</label>
-                        <input 
-                          type="text" 
-                          value={selectedRecord?.contract_id?.name || ''} 
-                          readOnly 
-                          style={{ width: '100%', padding: '12px', border: '1px solid #e2e8f0', borderRadius: '8px', background: '#f8fafc', fontSize: '0.875rem', color: '#1e293b' }} 
-                        />
-                      </div>
-                      <div style={{ gridColumn: 'span 1' }}>
-                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '6px', color: '#64748b', fontWeight: 500 }}>Mặt bằng thuê</label>
-                        <input 
-                          type="text" 
-                          value={selectedRecord?.house_id?.name || ''} 
-                          readOnly 
-                          style={{ width: '100%', padding: '12px', border: '1px solid #e2e8f0', borderRadius: '8px', background: '#f8fafc', fontSize: '0.875rem', color: '#1e293b' }} 
-                        />
-                      </div>
+                <div style={{ padding: '24px' }}>
+                  {/* Grid 4 cột hiển thị thông tin chung */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Hình thức đăng ký</label>
+                      <input 
+                        type="text" 
+                        value={selectedRecord?.registration_type?.label || ''} 
+                        readOnly 
+                        style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb', color: '#111827', fontSize: '0.875rem' }} 
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Ngày đăng ký sử dụng</label>
+                      <input 
+                        type="text" 
+                        value={selectedRecord?.date_request_display || ''} 
+                        readOnly 
+                        style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb', color: '#111827', fontSize: '0.875rem' }} 
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Tên công ty</label>
+                      <input 
+                        type="text" 
+                        value={selectedRecord?.company_id?.name || ''} 
+                        readOnly 
+                        style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb', color: '#111827', fontSize: '0.875rem' }} 
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Số hợp đồng</label>
+                      <input 
+                        type="text" 
+                        value={selectedRecord?.contract_id?.name || ''} 
+                        readOnly 
+                        style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb', color: '#111827', fontSize: '0.875rem' }} 
+                      />
                     </div>
                   </div>
 
-                  {/* Line Items Table */}
-                  <div>
-                    <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#334155', marginBottom: '20px', paddingBottom: '12px', borderBottom: '2px solid #f1f5f9' }}>Danh sách đăng ký</h3>
-                    <div style={{ overflowX: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', color: '#1e293b' }}>
+                  {/* Phần 2 cột: mặt bằng + tài liệu bên trái, định mức bên phải */}
+                  <div style={{ display: 'flex', gap: '24px', marginBottom: '24px' }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Mặt bằng thuê</label>
+                      <input 
+                        type="text" 
+                        value={selectedRecord?.house_id?.name || ''} 
+                        readOnly 
+                        style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb', color: '#111827', fontSize: '0.875rem', marginBottom: '16px' }} 
+                      />
+
+                      {/* Tài liệu đính kèm */}
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                          <i className="fa-solid fa-paperclip" style={{ color: '#4b5563' }}></i>
+                          <span style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#374151' }}>Tài liệu đính kèm</span>
+                        </div>
+                        {selectedRecord?.attachment_ids && selectedRecord.attachment_ids.length > 0 ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {selectedRecord.attachment_ids.map((att, idx) => (
+                              <div key={att.id || idx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <i className="fa-solid fa-file" style={{ color: '#3b82f6' }}></i>
+                                <a href={att.url || '#'} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.875rem', color: '#3b82f6', textDecoration: 'none' }}>
+                                  {att.name || `Tài liệu ${idx + 1}`}
+                                </a>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p style={{ color: '#6b7280', fontSize: '0.875rem', fontStyle: 'italic', margin: 0 }}>
+                            Không có tài liệu đính kèm.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div style={{ flex: 1 }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', color: '#111827' }}>
                         <thead>
-                          <tr style={{ background: '#f8fafc' }}>
-                            <th style={{ padding: '14px 12px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', fontWeight: 700, color: '#1e293b' }}>STT</th>
-                            <th style={{ padding: '14px 12px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', fontWeight: 700, color: '#1e293b' }}>Tên nhân viên</th>
-                            <th style={{ padding: '14px 12px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', fontWeight: 700, color: '#1e293b' }}>Số điện thoại</th>
-                            <th style={{ padding: '14px 12px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', fontWeight: 700, color: '#1e293b' }}>Biển kiểm soát</th>
-                            <th style={{ padding: '14px 12px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', fontWeight: 700, color: '#1e293b' }}>Loại xe</th>
-                            <th style={{ padding: '14px 12px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', fontWeight: 700, color: '#1e293b' }}>Hãng xe</th>
-                            <th style={{ padding: '14px 12px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', fontWeight: 700, color: '#1e293b' }}>Xe gửi 30 phút</th>
+                          <tr style={{ background: '#e5e7eb' }}>
+                            <th style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}></th>
+                            <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Hợp đồng</th>
+                            <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Thực tế</th>
+                            <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Chờ xử lý</th>
+                            <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Vượt định mức</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <td style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}>Ô tô</td>
+                            <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
+                              {allocationLoading ? '...' : (allocationInfo?.allocation_car_quota ?? 0)}
+                            </td>
+                            <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
+                              {allocationLoading ? '...' : (allocationInfo?.allocation_car_actual ?? 0)}
+                            </td>
+                            <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
+                              {allocationLoading ? '...' : (allocationInfo?.allocation_car_pending ?? 0)}
+                            </td>
+                            <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db', color: (allocationLoading ? false : (allocationInfo?.allocation_car_exceeded ?? 0) > 0) ? '#dc2626' : '#111827' }}>
+                              {allocationLoading ? '...' : (allocationInfo?.allocation_car_exceeded ?? 0)}
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}>Xe máy</td>
+                            <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
+                              {allocationLoading ? '...' : (allocationInfo?.allocation_motorbike_quota ?? 0)}
+                            </td>
+                            <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
+                              {allocationLoading ? '...' : (allocationInfo?.allocation_motorbike_actual ?? 0)}
+                            </td>
+                            <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
+                              {allocationLoading ? '...' : (allocationInfo?.allocation_motorbike_pending ?? 0)}
+                            </td>
+                            <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db', color: (allocationLoading ? false : (allocationInfo?.allocation_motorbike_exceeded ?? 0) > 0) ? '#dc2626' : '#111827' }}>
+                              {allocationLoading ? '...' : (allocationInfo?.allocation_motorbike_exceeded ?? 0)}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Bảng danh sách trực tiếp */}
+                  <div style={{ marginTop: '32px' }}>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold', marginBottom: '16px', color: '#374151' }}>Danh sách đăng ký</h3>
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'separate', fontSize: '0.875rem', color: '#111827', border: 'none' }}>
+                        <thead>
+                          <tr style={{ background: '#e5e7eb' }}>
+                            <th style={{ padding: '12px 8px', border: 'none', textAlign: 'center', color: '#374151', fontWeight: 600 }}>STT</th>
+                            <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151', fontWeight: 600 }}>Tên nhân viên</th>
+                            <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151', fontWeight: 600 }}>Số điện thoại</th>
+                            <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151', fontWeight: 600 }}>Biển kiểm soát</th>
+                            <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151', fontWeight: 600 }}>Loại xe</th>
+                            <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151', fontWeight: 600 }}>Hãng xe</th>
+                            <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151', fontWeight: 600 }}>Xe gửi 30 phút</th>
                           </tr>
                         </thead>
                         <tbody>
                           {parsedData.length > 0 ? (
-                            parsedData.map((row, index) => (
-                              <tr key={row.id} style={{ background: index % 2 === 0 ? '#fff' : '#fafafa' }}>
-                                <td style={{ padding: '12px', borderBottom: '1px solid #e2e8f0' }}>{row.stt}</td>
-                                <td style={{ padding: '12px', borderBottom: '1px solid #e2e8f0' }}>{row.name}</td>
-                                <td style={{ padding: '12px', borderBottom: '1px solid #e2e8f0' }}>{row.phone}</td>
-                                <td style={{ padding: '12px', borderBottom: '1px solid #e2e8f0' }}>{row.licensePlate}</td>
-                                <td style={{ padding: '12px', borderBottom: '1px solid #e2e8f0' }}>{row.vehicleType}</td>
-                                <td style={{ padding: '12px', borderBottom: '1px solid #e2e8f0' }}>{row.brand}</td>
-                                <td style={{ padding: '12px', borderBottom: '1px solid #e2e8f0' }}>{row.parkingThirtyMin || '-'}</td>
+                            parsedData.map((row, idx) => (
+                              <tr key={row.id} style={{ background: idx % 2 === 0 ? 'transparent' : '#f9fafb' }}>
+                                <td style={{ padding: '12px 8px', border: 'none', textAlign: 'center' }}>{row.stt}</td>
+                                <td style={{ padding: '12px 8px', border: 'none' }}>{row.name}</td>
+                                <td style={{ padding: '12px 8px', border: 'none' }}>{row.phone}</td>
+                                <td style={{ padding: '12px 8px', border: 'none' }}>{row.licensePlate}</td>
+                                <td style={{ padding: '12px 8px', border: 'none' }}>{row.vehicleType}</td>
+                                <td style={{ padding: '12px 8px', border: 'none' }}>{row.brand}</td>
+                                <td style={{ padding: '12px 8px', border: 'none' }}>{row.parkingThirtyMin || '-'}</td>
                               </tr>
                             ))
                           ) : (
                             <tr>
-                              <td colSpan={7} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '0.875rem' }}>
+                              <td colSpan={7} style={{ padding: '24px', textAlign: 'center', color: '#6b7280', border: 'none' }}>
                                 Không có dữ liệu
                               </td>
                             </tr>
@@ -1750,6 +1824,13 @@ export default function VehicleRegistration() {
                         </tbody>
                       </table>
                     </div>
+                  </div>
+
+                  {/* Actions footer */}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '16px', marginTop: '32px', paddingTop: '16px', borderTop: '1px solid #d1d5db' }}>
+                    <button onClick={() => navigate('/my/menu')} style={{ padding: '8px 24px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#fff', color: '#374151', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <i className="fa-solid fa-xmark"></i> Đóng
+                    </button>
                   </div>
                 </div>
               </div>

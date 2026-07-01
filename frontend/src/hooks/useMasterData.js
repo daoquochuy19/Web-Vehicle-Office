@@ -27,7 +27,7 @@ export function useMasterData() {
   const [typePartnerOptions, setTypePartnerOptions] = useState([])
   const [registrationTypeOptions, setRegistrationTypeOptions] = useState([])
   const [vehicleTypeOptions, setVehicleTypeOptions] = useState([])
-  const [feeConfigOptions, setFeeConfigOptions] = useState([])
+
   const [contractApartments, setContractApartments] = useState([])
   const [buidingHouse, setBuildingHouse] = useState([])
   const [fleetVehicleModelBrand, setFleetVehicleModelBrand] = useState([])
@@ -68,19 +68,7 @@ export function useMasterData() {
                 order: 'name asc',
                 depth: 0,
               },
-              {
-                key: 'fee_configs',
-                model: 'fee.building.config',
-                fields: ['id', 'name'],
-                domain: [
-                  ['state', '=', 'active'],
-                  ['object_type', '=', 'office'],
-                ],
-                limit: 200,
-                offset: 0,
-                order: 'name asc',
-                depth: 0,
-              },
+
               {
                 key: 'contract_apartments',
                 model: 'contract.appartment',
@@ -153,7 +141,7 @@ export function useMasterData() {
         setRegistrationTypeOptions(apiRegType.length > 0 ? apiRegType : FALLBACK_REGISTRATION_TYPE_OPTIONS)
 
         setVehicleTypeOptions(result.vehicle_types ?? [])
-        setFeeConfigOptions(result.fee_configs ?? [])
+
         setFleetVehicleModelBrand(result.fleet_vehicle_model_brand ?? [])
         setPaymentTypeOptions(result.payment_type_options ?? [])
       } catch (err) {
@@ -174,7 +162,7 @@ export function useMasterData() {
     typePartnerOptions,
     registrationTypeOptions,
     vehicleTypeOptions,
-    feeConfigOptions,
+
     contractApartments,
     loading,
     error,
