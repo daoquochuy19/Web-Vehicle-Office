@@ -231,11 +231,7 @@ export default function Menu() {
         <div className="dashboard-content">
           {/* Action Buttons */}
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginBottom: '20px' }}>
-            <button className="btn-secondary" onClick={() => navigate('/my/vehicle-registration', { state: { mode: 'excel' } })}>
-              <i className="fa-solid fa-file-excel"></i>
-              Thao tác excel
-            </button>
-            <button className="btn-primary" onClick={() => navigate('/my/vehicle-registration', { state: { mode: 'manual' } })}>
+            <button className="btn-primary" onClick={() => navigate('/my/vehicle-registration', { state: { mode: 'excel' } })}>
               <i className="fa-solid fa-plus"></i>
               Thêm mới
             </button>

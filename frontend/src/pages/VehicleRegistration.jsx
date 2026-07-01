@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useMasterData } from '../hooks/useMasterData'
-import FilePreviewModal from '../components/FilePreviewModal'
 import { authFetch } from '../utils/authApi'
 import * as XLSX from 'xlsx'
 import logoImg from '../assets/images/hapulico-logo.jpg'
@@ -50,7 +49,6 @@ export default function VehicleRegistration() {
     company: '',
     premises: '',
     vehicleType: '',
-    ownershipType: false,
     feeConfig: '',
     paymentMethod: '',
     userName: '',
@@ -68,7 +66,6 @@ export default function VehicleRegistration() {
   const [docFileNames, setDocFileNames] = useState({})
   const [docFiles, setDocFiles] = useState({})
   const [docAttachmentIds, setDocAttachmentIds] = useState({})
-  const [previewFile, setPreviewFile] = useState(null)
 
   // --- State riêng cho "đổi biển" / "khóa/mở/trả thẻ" ---
   const [oldPlateOptions, setOldPlateOptions] = useState([])
@@ -90,14 +87,14 @@ export default function VehicleRegistration() {
   const [excelFile, setExcelFile] = useState(null)
   const [excelFileName, setExcelFileName] = useState('')
   const [parsedData, setParsedData] = useState([])
-  const [filterType, setFilterType] = useState('invalid')
+  const [filterType, setFilterType] = useState('valid')
   const [manualRow, setManualRow] = useState({
     name: '',
     phone: '',
     licensePlate: '',
     vehicleType: '',
     brand: '',
-    ownership: '',
+    parkingThirtyMin: '',
     paymentMethod: '',
   })
   const [showManualRow, setShowManualRow] = useState(false)
@@ -209,13 +206,6 @@ export default function VehicleRegistration() {
     }
   }, [mode, formData.registrationType, formData.company, formData.contract, formData.buidingHouse])
 
-  // Fetch allocation info khi điền đầy đủ các trường trong Manual view
-  useEffect(() => {
-    if (mode === 'manual' || (!mode && formData.registrationType === 'create')) {
-      fetchAllocationInfo(formData)
-    }
-  }, [mode, formData.registrationType, formData.company, formData.contract, formData.buidingHouse])
-
   // Fetch thông tin định mức (dùng cho Excel import)
   const fetchAllocationInfo = async (data) => {
     if (!data.registrationType || !data.company || !data.contract || !data.buidingHouse) {
@@ -314,8 +304,8 @@ export default function VehicleRegistration() {
   const handleDownloadTemplate = (e) => {
     e.preventDefault();
     const ws_data = [
-      ['STT', 'Tên nhân viên', 'Số điện thoại', 'Biển kiểm soát', 'Loại xe', 'Hãng xe', 'Loại sở hữu', 'Hình thức thanh toán'],
-      [1, 'Nguyễn Văn A', '0981524563', '29A-12345', 'Ô tô', 'Toyota', 'Chính chủ', 'Thanh toán chung']
+      ['STT', 'Tên nhân viên', 'Số điện thoại', 'Biển kiểm soát', 'Loại xe', 'Hãng xe', 'Xe gửi 30 phút', 'Hình thức thanh toán'],
+      [1, 'Nguyễn Văn A', '0981524563', '29A-12345', 'Ô tô', 'Toyota', 'Có', 'Thanh toán chung']
     ];
     const ws = XLSX.utils.aoa_to_sheet(ws_data);
     const wb = XLSX.utils.book_new();
@@ -373,7 +363,7 @@ export default function VehicleRegistration() {
       }
 
       const headers = data[0].map(h => typeof h === 'string' ? h.trim() : h);
-      const expectedHeaders = ['STT', 'Tên nhân viên', 'Số điện thoại', 'Biển kiểm soát', 'Loại xe', 'Hãng xe', 'Loại sở hữu', 'Hình thức thanh toán'];
+      const expectedHeaders = ['STT', 'Tên nhân viên', 'Số điện thoại', 'Biển kiểm soát', 'Loại xe', 'Hãng xe', 'Xe gửi 30 phút', 'Hình thức thanh toán'];
       
       const isFormatValid = expectedHeaders.every((h, i) => headers[i] === h);
       if (!isFormatValid) {
@@ -395,7 +385,7 @@ export default function VehicleRegistration() {
           licensePlate: row[3] || '',
           vehicleType: row[4] || '',
           brand: row[5] || '',
-          ownership: row[6] || '',
+          parkingThirtyMin: row[6] || '',
           paymentMethod: row[7] || '',
           isValid: true,
           errors: [],
@@ -459,7 +449,7 @@ export default function VehicleRegistration() {
       licensePlate: manualRow.licensePlate.trim(),
       vehicleType: manualRow.vehicleType.trim(),
       brand: manualRow.brand.trim(),
-      ownership: manualRow.ownership.trim(),
+      parkingThirtyMin: manualRow.parkingThirtyMin,
       paymentMethod: manualRow.paymentMethod.trim(),
       isValid: true,
       errors: [],
@@ -491,7 +481,7 @@ export default function VehicleRegistration() {
       licensePlate: '',
       vehicleType: '',
       brand: '',
-      ownership: '',
+      parkingThirtyMin: '',
       paymentMethod: '',
     })
   }
@@ -642,85 +632,6 @@ export default function VehicleRegistration() {
     setDocFiles((prev) => ({ ...prev, [docId]: file }))
     const attachmentId = await uploadFileToOdoo(file)
     if (attachmentId) setDocAttachmentIds((prev) => ({ ...prev, [docId]: attachmentId }))
-  }
-
-  const canPreview = (mimetype) => {
-    if (!mimetype) return false
-    if (/^image\//i.test(mimetype)) return true
-    if (mimetype === 'application/pdf') return true
-    return [
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'application/vnd.ms-powerpoint',
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    ].includes(mimetype.toLowerCase())
-  }
-
-  const openPreview = (file) => {
-    if (!canPreview(file.type)) {
-      alert('Không thể xem trước loại file này. Vui lòng tải về để xem.')
-      return
-    }
-    setPreviewFile(file)
-  }
-
-  const handleSubmitNew = async (e) => {
-    e.preventDefault()
-
-    const payload = {
-      registration_type: formData.registrationType,
-      registration_method: 'online',
-      house_id: Number(formData.buidingHouse),
-      contract_id: Number(formData.contract),
-      company_id: Number(formData.company),
-      date_request: formData.effectiveDate,
-      note: formData.note,
-      line_register_ids: [
-        {
-          is_not_owner: formData.ownershipType,
-          license_plate: formData.licensePlate,
-          registrant_name: formData.userName,
-          phone_number: formData.phone,
-          vehicle_type_id: Number(formData.vehicleType),
-          is_approved: false,
-          rejection_reason: '',
-          fee_building_config_id: Number(formData.feeConfig),
-        },
-      ],
-    }
-
-    try {
-      const res = await authFetch('/api/v1/office-parking', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(payload),
-      })
-      let data
-      try {
-        data = await res.json()
-      } catch (jsonErr) {
-        const textData = await res.text()
-        data = textData
-      }
-      if (!res.ok) {
-        const errorMsg = data?.result?.MESSAGE || data?.message || `HTTP ${res.status}`
-        throw new Error(errorMsg)
-      }
-      const businessResult = data?.result
-      if (businessResult && businessResult.RESULT === 'ERROR') {
-        throw new Error(businessResult.MESSAGE || 'Lỗi không xác định')
-      }
-      alert('Dữ liệu đã được lưu thành công')
-      navigate('/my/menu')
-    } catch (err) {
-      alert(`Lưu dữ liệu thất bại: ${err.message || 'Vui lòng thử lại'}`)
-    }
   }
 
   const handleSubmitChangePlate = async (e) => {
@@ -995,6 +906,7 @@ export default function VehicleRegistration() {
       phone_number: row.phone,
       vehicle_type_name: row.vehicleType,
       brand_name: row.brand,
+      x_is_free_exit_30min: row.parkingThirtyMin === 'Có',
       is_approved: false,
       rejection_reason: ''
     }))
@@ -1183,176 +1095,6 @@ export default function VehicleRegistration() {
     </div>
   )
 
-  // ─── Render manual form for "Cấp mới" ────────────────────────────────────────
-  const renderManualForm = () => (
-    <div className="form-layout-2col">
-      <div className="form-left">
-        <form onSubmit={handleSubmitNew} className="vehicle-registration-form">
-          {renderTopRows()}
-          {renderCompanyRow()}
-          {renderPremisesVehicleRow()}
-
-          {/* Loại sở hữu + Biển số xe */}
-          <div className="form-input-row">
-            <div className="form-group">
-              <label className="form-label form-label-dark">Loại sở hữu</label>
-              <div style={{ display: 'flex', gap: 24, padding: '8px 0' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: '0.95rem', color: '#0f172a' }}>
-                  <input
-                    type="radio"
-                    name="ownershipType"
-                    value={true}
-                    checked={!formData.ownershipType}
-                    onChange={() => setFormData({ ...formData, ownershipType: false })}
-                    style={{ width: 18, height: 18, accentColor: '#ef4444', cursor: 'pointer' }}
-                  />
-                  Chính chủ
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: '0.95rem', color: '#0f172a' }}>
-                  <input
-                    type="radio"
-                    name="ownershipType"
-                    value={false}
-                    checked={formData.ownershipType}
-                    onChange={() => setFormData({ ...formData, ownershipType: true })}
-                    style={{ width: 18, height: 18, accentColor: '#ef4444', cursor: 'pointer' }}
-                  />
-                  Không chính chủ
-                </label>
-              </div>
-            </div>
-            <div className="form-group">
-              <label className="form-label form-label-dark">Biển số xe <span style={{ color: '#ef4444' }}>*</span></label>
-              <input type="text" name="licensePlate" value={formData.licensePlate} onChange={handleChange} placeholder="-Nhập-" className="form-input" />
-            </div>
-          </div>
-
-          {/* Họ tên + SĐT */}
-          <div className="form-input-row">
-            <div className="form-group">
-              <label className="form-label form-label-dark">Họ tên người sử dụng <span style={{ color: '#ef4444' }}>*</span></label>
-              <input type="text" name="userName" value={formData.userName} onChange={handleChange} placeholder="-Nhập-" className="form-input" />
-            </div>
-            <div className="form-group">
-              <label className="form-label form-label-dark">Số điện thoại người sử dụng</label>
-              <input type="tel" name="phone" value={formData.phone} onChange={handleChange} placeholder="-Nhập-" className="form-input" />
-            </div>
-          </div>
-          {renderFeePaymentRow()}
-          {renderEffectiveDateRow()}
-
-          {/* Ghi chú — full width */}
-          <div className="form-group">
-            <label className="form-label form-label-dark">Ghi chú</label>
-            <textarea name="note" value={formData.note} onChange={handleChange} placeholder="Nhập ghi chú" className="form-textarea" rows={4} style={{ minHeight: '100px' }} />
-          </div>
-
-          {renderActions()}
-        </form>
-      </div>
-
-      <div className="form-right">
-        <div style={{ marginBottom: 24 }}>
-          <h3 style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: 16, color: '#111827' }}>Thông tin định mức</h3>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', color: '#111827' }}>
-            <thead>
-              <tr style={{ background: '#e5e7eb' }}>
-                <th style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}></th>
-                <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Hợp đồng</th>
-                <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Thực tế</th>
-                <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Chờ xử lý</th>
-                <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Vượt định mức</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}>Ô tô</td>
-                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
-                  {allocationLoading ? '...' : (allocationInfo?.allocation_car_quota ?? 0)}
-                </td>
-                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
-                  {allocationLoading ? '...' : (allocationInfo?.allocation_car_actual ?? 0)}
-                </td>
-                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
-                  {(() => {
-                    if (allocationLoading) return '...'
-                    const basePending = allocationInfo?.allocation_car_pending ?? 0
-                    const selectedVehicleType = vehicleTypeOptions.find(v => v.id === Number(formData.vehicleType))
-                    const isCar = selectedVehicleType?.is_car
-                    return isCar ? basePending + 1 : basePending
-                  })()}
-                </td>
-                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db', color: (() => {
-                  if (allocationLoading) return '#111827'
-                  const quota = allocationInfo?.allocation_car_quota ?? 0
-                  const actual = allocationInfo?.allocation_car_actual ?? 0
-                  const basePending = allocationInfo?.allocation_car_pending ?? 0
-                  const selectedVehicleType = vehicleTypeOptions.find(v => v.id === Number(formData.vehicleType))
-                  const isCar = selectedVehicleType?.is_car
-                  const pending = isCar ? basePending + 1 : basePending
-                  const exceeded = (actual + pending) - quota
-                  return exceeded > 0 ? '#dc2626' : '#111827'
-                })() }}>
-                  {(() => {
-                    if (allocationLoading) return '...'
-                    const quota = allocationInfo?.allocation_car_quota ?? 0
-                    const actual = allocationInfo?.allocation_car_actual ?? 0
-                    const basePending = allocationInfo?.allocation_car_pending ?? 0
-                    const selectedVehicleType = vehicleTypeOptions.find(v => v.id === Number(formData.vehicleType))
-                    const isCar = selectedVehicleType?.is_car
-                    const pending = isCar ? basePending + 1 : basePending
-                    const exceeded = (actual + pending) - quota
-                    return exceeded > 0 ? exceeded : 0
-                  })()}
-                </td>
-              </tr>
-              <tr>
-                <td style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}>Xe máy</td>
-                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
-                  {allocationLoading ? '...' : (allocationInfo?.allocation_motorbike_quota ?? 0)}
-                </td>
-                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
-                  {allocationLoading ? '...' : (allocationInfo?.allocation_motorbike_actual ?? 0)}
-                </td>
-                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
-                  {(() => {
-                    if (allocationLoading) return '...'
-                    const basePending = allocationInfo?.allocation_motorbike_pending ?? 0
-                    const selectedVehicleType = vehicleTypeOptions.find(v => v.id === Number(formData.vehicleType))
-                    const isMotorbike = selectedVehicleType?.is_motorbike
-                    return isMotorbike ? basePending + 1 : basePending
-                  })()}
-                </td>
-                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db', color: (() => {
-                  if (allocationLoading) return '#111827'
-                  const quota = allocationInfo?.allocation_motorbike_quota ?? 0
-                  const actual = allocationInfo?.allocation_motorbike_actual ?? 0
-                  const basePending = allocationInfo?.allocation_motorbike_pending ?? 0
-                  const selectedVehicleType = vehicleTypeOptions.find(v => v.id === Number(formData.vehicleType))
-                  const isMotorbike = selectedVehicleType?.is_motorbike
-                  const pending = isMotorbike ? basePending + 1 : basePending
-                  const exceeded = (actual + pending) - quota
-                  return exceeded > 0 ? '#dc2626' : '#111827'
-                })() }}>
-                  {(() => {
-                    if (allocationLoading) return '...'
-                    const quota = allocationInfo?.allocation_motorbike_quota ?? 0
-                    const actual = allocationInfo?.allocation_motorbike_actual ?? 0
-                    const basePending = allocationInfo?.allocation_motorbike_pending ?? 0
-                    const selectedVehicleType = vehicleTypeOptions.find(v => v.id === Number(formData.vehicleType))
-                    const isMotorbike = selectedVehicleType?.is_motorbike
-                    const pending = isMotorbike ? basePending + 1 : basePending
-                    const exceeded = (actual + pending) - quota
-                    return exceeded > 0 ? exceeded : 0
-                  })()}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  )
 
   /**
    * Helper render layout "Hỏng thẻ / Mất thẻ cấp lại".
@@ -1982,7 +1724,7 @@ export default function VehicleRegistration() {
                             <th style={{ padding: '14px 12px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', fontWeight: 700, color: '#1e293b' }}>Biển kiểm soát</th>
                             <th style={{ padding: '14px 12px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', fontWeight: 700, color: '#1e293b' }}>Loại xe</th>
                             <th style={{ padding: '14px 12px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', fontWeight: 700, color: '#1e293b' }}>Hãng xe</th>
-                            <th style={{ padding: '14px 12px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', fontWeight: 700, color: '#1e293b' }}>Loại sở hữu</th>
+                            <th style={{ padding: '14px 12px', textAlign: 'left', borderBottom: '2px solid #e2e8f0', fontWeight: 700, color: '#1e293b' }}>Xe gửi 30 phút</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1995,7 +1737,7 @@ export default function VehicleRegistration() {
                                 <td style={{ padding: '12px', borderBottom: '1px solid #e2e8f0' }}>{row.licensePlate}</td>
                                 <td style={{ padding: '12px', borderBottom: '1px solid #e2e8f0' }}>{row.vehicleType}</td>
                                 <td style={{ padding: '12px', borderBottom: '1px solid #e2e8f0' }}>{row.brand}</td>
-                                <td style={{ padding: '12px', borderBottom: '1px solid #e2e8f0' }}>{row.ownership}</td>
+                                <td style={{ padding: '12px', borderBottom: '1px solid #e2e8f0' }}>{row.parkingThirtyMin || '-'}</td>
                               </tr>
                             ))
                           ) : (
@@ -2274,8 +2016,8 @@ export default function VehicleRegistration() {
                               outline: 'none'
                             }}
                           >
-                            <option value="invalid">Dữ liệu không hợp lệ</option>
                             <option value="valid">Dữ liệu hợp lệ</option>
+                            <option value="invalid">Dữ liệu không hợp lệ</option>
                             <option value="all">Tất cả</option>
                           </select>
                         </div>
@@ -2291,7 +2033,7 @@ export default function VehicleRegistration() {
                               <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151' }}>Biển kiểm soát</th>
                               <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151' }}>Loại xe</th>
                               <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151' }}>Hãng xe</th>
-                              <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151' }}>Loại sở hữu</th>
+                              <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151' }}>Xe gửi 30 phút</th>
                               <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151' }}>Hình thức thanh toán</th>
                               {showErrorColumn && (
                                 <th style={{ padding: '12px 8px', border: 'none', textAlign: 'center', color: '#374151' }}>Mô tả lỗi</th>
@@ -2378,16 +2120,16 @@ export default function VehicleRegistration() {
                                   <td style={{ padding: '12px 8px', border: 'none' }}>
                                     {isEditing ? (
                                       <select
-                                        value={currentData.ownership}
-                                        onChange={(e) => handleTempRowChange('ownership', e.target.value)}
+                                        value={currentData.parkingThirtyMin}
+                                        onChange={(e) => handleTempRowChange('parkingThirtyMin', e.target.value)}
                                         style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: '4px', outline: 'none', background: '#fff' }}
                                       >
                                         <option value="">Chọn...</option>
-                                        <option value="Chính chủ">Chính chủ</option>
-                                        <option value="Không chính chủ">Không chính chủ</option>
+                                        <option value="Có">Có</option>
+                                        <option value="Không">Không</option>
                                       </select>
                                     ) : (
-                                      <span style={{ display: 'block', width: '100%' }}>{row.ownership}</span>
+                                      <span style={{ display: 'block', width: '100%' }}>{row.parkingThirtyMin || '-'}</span>
                                     )}
                                   </td>
                                   <td style={{ padding: '12px 8px', border: 'none' }}>
@@ -2511,17 +2253,17 @@ export default function VehicleRegistration() {
                                   </select>
                                 </td>
                                 <td style={{ padding: '12px 8px', border: 'none' }}>
-                                  <select
-                                    name="ownership"
-                                    value={manualRow.ownership}
-                                    onChange={handleManualRowChange}
-                                    style={{ width: '100%', border: 'none', outline: 'none', minHeight: '38px', background: 'transparent' }}
-                                  >
-                                    <option value="">Chọn...</option>
-                                    <option value="Chính chủ">Chính chủ</option>
-                                    <option value="Không chính chủ">Không chính chủ</option>
-                                  </select>
-                                </td>
+                                   <select
+                                     name="parkingThirtyMin"
+                                     value={manualRow.parkingThirtyMin}
+                                     onChange={handleManualRowChange}
+                                     style={{ width: '100%', border: 'none', outline: 'none', minHeight: '38px', background: 'transparent' }}
+                                   >
+                                     <option value="">Chọn...</option>
+                                     <option value="Có">Có</option>
+                                     <option value="Không">Không</option>
+                                   </select>
+                                 </td>
                                 <td style={{ padding: '12px 8px', border: 'none' }}>
                                   <select
                                     name="paymentMethod"
@@ -2589,7 +2331,7 @@ export default function VehicleRegistration() {
                                 licensePlate: '',
                                 vehicleType: '',
                                 brand: '',
-                                ownership: '',
+                                parkingThirtyMin: '',
                                 paymentMethod: '',
                               })
                             }}
@@ -2686,17 +2428,13 @@ export default function VehicleRegistration() {
                 </div>
               </div>
               </div>
-            ) : (
-              /* ════════════ VIEW MANUAL FORM (CẤP MỚI) ════════════ */
-              renderManualForm()
-            )
+            ) : null
           )}
 
             </section>
           </div>
         </div>
       </main>
-      <FilePreviewModal file={previewFile} onClose={() => setPreviewFile(null)} />
     </div>
   )
 }
