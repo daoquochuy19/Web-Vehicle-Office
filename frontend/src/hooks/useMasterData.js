@@ -22,7 +22,8 @@ const FALLBACK_TYPE_PARTNER_OPTIONS = [
  * Trả về: partners, typePartnerOptions, registrationTypeOptions, vehicleTypeOptions,
  *          feeConfigOptions, loading, error
  */
-export function useMasterData() {
+export function useMasterData(options = {}) {
+  const { enabled = true } = options
   const [landlords, setLandlords] = useState([])
   const [typePartnerOptions, setTypePartnerOptions] = useState([])
   const [registrationTypeOptions, setRegistrationTypeOptions] = useState([])
@@ -36,6 +37,7 @@ export function useMasterData() {
   const [error, setError] = useState('')
 
   useEffect(() => {
+    if (!enabled) return
     async function fetchMasterData() {
       setLoading(true)
       setError('')
@@ -155,7 +157,7 @@ export function useMasterData() {
       }
     }
     fetchMasterData()
-  }, [])
+  }, [enabled])
 
   return {
     landlords,

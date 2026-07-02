@@ -23,6 +23,12 @@ export default function VehicleRegistration() {
     navigate('/');
   };
 
+  // --- Get mode from navigation state ---
+  const mode = location.state?.mode || 'manual'
+  const selectedRecord = location.state?.selectedRecord || null
+  const [currentRecord, setCurrentRecord] = useState(selectedRecord)
+  const isViewMode = !!currentRecord
+
   const {
     landlords,
     typePartnerOptions,
@@ -34,12 +40,7 @@ export default function VehicleRegistration() {
     paymentTypeOptions,
     loading: masterLoading,
     error: masterError,
-  } = useMasterData()
-
-  // --- Get mode from navigation state ---
-  const mode = location.state?.mode || 'manual'
-  const selectedRecord = location.state?.selectedRecord || null
-  const isViewMode = !!selectedRecord
+  } = useMasterData({ enabled: !isViewMode })
 
   // --- State form chung ---
   const [formData, setFormData] = useState({
@@ -115,6 +116,12 @@ export default function VehicleRegistration() {
   // Các mode dùng chung layout đơn cột + dropdown biển xe active
   const isPlateSelectMode = isChangePlate || isLockCard || isUnlockCard || isReturnCard || isDamagedReissue || isLostReissue
 
+  // Check if any line has value for the 4 server-only fields to render column dynamically
+  const hasFeeBuildingConfig = isViewMode && parsedData.some(row => row.feeBuildingConfigId && row.feeBuildingConfigName);
+  const hasExceededQuotaColumn = isViewMode && parsedData.some(row => row.isExceededQuota);
+  const hasOfficeConfirmation = isViewMode && parsedData.some(row => row.officeConfirmationLabel);
+  const hasOfficeRejectionReason = isViewMode && parsedData.some(row => row.officeRejectionReason);
+
   useEffect(() => {
     if (localStorage.getItem('loggedIn') !== 'true') {
       navigate('/', { replace: true })
@@ -123,20 +130,20 @@ export default function VehicleRegistration() {
 
   // Populate form with selected record data when available
   useEffect(() => {
-    if (selectedRecord) {
+    if (currentRecord) {
       setFormData(prev => ({
         ...prev,
-        registrationType: selectedRecord.registration_type?.key || '',
-        company: selectedRecord.company_id?.id || '',
-        contract: selectedRecord.contract_id?.id || '',
-        buidingHouse: selectedRecord.house_id?.id || '',
-        effectiveDate: selectedRecord.date_request?.split(' ')[0] || '',
-        note: selectedRecord.note || ''
+        registrationType: currentRecord.registration_type?.key || '',
+        company: currentRecord.company_id?.id || '',
+        contract: currentRecord.contract_id?.id || '',
+        buidingHouse: currentRecord.house_id?.id || '',
+        effectiveDate: currentRecord.date_request?.split(' ')[0] || '',
+        note: currentRecord.note || ''
       }))
 
       // Populate allocation info from the record
-      if (selectedRecord.allocation) {
-        const alloc = selectedRecord.allocation;
+      if (currentRecord.allocation) {
+        const alloc = currentRecord.allocation;
         setAllocationInfo({
           allocation_car_quota: alloc.allocation_car_quota ?? alloc.car_quota ?? 0,
           allocation_car_actual: alloc.allocation_car_actual ?? alloc.car_actual ?? 0,
@@ -151,8 +158,8 @@ export default function VehicleRegistration() {
       }
 
       // Populate line items
-      if (selectedRecord.line_register_ids && Array.isArray(selectedRecord.line_register_ids)) {
-        const lines = selectedRecord.line_register_ids.map((line, index) => ({
+      if (currentRecord.line_register_ids && Array.isArray(currentRecord.line_register_ids)) {
+        const lines = currentRecord.line_register_ids.map((line, index) => ({
           id: `${Date.now()}-${index}`,
           stt: index + 1,
           name: line.registrant_id?.name || '',
@@ -163,12 +170,49 @@ export default function VehicleRegistration() {
           parkingThirtyMin: (line.x_is_free_exit_30min || line.is_parking_30_min) ? 'Có' : 'Không',
           paymentMethod: '',
           isValid: true,
-          errors: []
+          errors: [],
+          feeBuildingConfigId: line.fee_building_config_id?.id || false,
+          feeBuildingConfigName: line.fee_building_config_id?.name || '',
+          isExceededQuota: line.is_exceeded_quota || false,
+          officeConfirmationLabel: line.office_confirmation?.label || '',
+          officeConfirmationKey: line.office_confirmation?.key || '',
+          officeRejectionReason: line.office_rejection_reason || '',
         }))
         setParsedData(lines)
       }
     }
-  }, [selectedRecord])
+  }, [currentRecord])
+
+  // Fetch realtime record data khi đang xem Chi tiết thông tin đăng ký để có data mới nhất
+  useEffect(() => {
+    if (!isViewMode || !selectedRecord?.id) return
+
+    async function fetchRealtimeRecord() {
+      try {
+        const res = await authFetch('/api/v1/office-parking', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        })
+        if (res.ok) {
+          const data = await res.json()
+          if (data.result?.RESULT === 'SUCCESS' || data.result?.STATUS_CODE === '0000') {
+            const items = data.result?.DATA?.items || []
+            const freshRecord = items.find(item => item.id === selectedRecord.id)
+            if (freshRecord) {
+              console.log("Fetched realtime record details:", freshRecord)
+              setCurrentRecord(freshRecord)
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch realtime record detail:", err)
+      }
+    }
+
+    fetchRealtimeRecord()
+  }, [isViewMode, selectedRecord?.id])
 
   // Fetch danh sách biển xe active khi mode đổi biển hoặc khóa thẻ + đã chọn công ty
   useEffect(() => {
@@ -1682,7 +1726,7 @@ export default function VehicleRegistration() {
                           <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Hình thức đăng ký</label>
                           <input
                             type="text"
-                            value={selectedRecord?.registration_type?.label || ''}
+                            value={currentRecord?.registration_type?.label || ''}
                             readOnly
                             style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb', color: '#111827', fontSize: '0.875rem' }}
                           />
@@ -1691,7 +1735,7 @@ export default function VehicleRegistration() {
                           <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Ngày đăng ký sử dụng</label>
                           <input
                             type="text"
-                            value={selectedRecord?.date_request_display || ''}
+                            value={currentRecord?.date_request_display || ''}
                             readOnly
                             style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb', color: '#111827', fontSize: '0.875rem' }}
                           />
@@ -1700,7 +1744,7 @@ export default function VehicleRegistration() {
                           <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Tên công ty</label>
                           <input
                             type="text"
-                            value={selectedRecord?.company_id?.name || ''}
+                            value={currentRecord?.company_id?.name || ''}
                             readOnly
                             style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb', color: '#111827', fontSize: '0.875rem' }}
                           />
@@ -1709,7 +1753,7 @@ export default function VehicleRegistration() {
                           <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Số hợp đồng</label>
                           <input
                             type="text"
-                            value={selectedRecord?.contract_id?.name || ''}
+                            value={currentRecord?.contract_id?.name || ''}
                             readOnly
                             style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb', color: '#111827', fontSize: '0.875rem' }}
                           />
@@ -1722,7 +1766,7 @@ export default function VehicleRegistration() {
                           <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Mặt bằng thuê</label>
                           <input
                             type="text"
-                            value={selectedRecord?.house_id?.name || ''}
+                            value={currentRecord?.house_id?.name || ''}
                             readOnly
                             style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb', color: '#111827', fontSize: '0.875rem', marginBottom: '16px' }}
                           />
@@ -1733,9 +1777,9 @@ export default function VehicleRegistration() {
                               <i className="fa-solid fa-paperclip" style={{ color: '#4b5563' }}></i>
                               <span style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#374151' }}>Tài liệu đính kèm</span>
                             </div>
-                            {selectedRecord?.attachment_ids && selectedRecord.attachment_ids.length > 0 ? (
+                            {currentRecord?.attachment_ids && currentRecord.attachment_ids.length > 0 ? (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                {selectedRecord.attachment_ids.map((att, idx) => (
+                                {currentRecord.attachment_ids.map((att, idx) => (
                                   <div key={att.id || idx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                     <i className="fa-solid fa-file" style={{ color: '#3b82f6' }}></i>
                                     <a href={att.url || '#'} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.875rem', color: '#3b82f6', textDecoration: 'none' }}>
@@ -1799,7 +1843,7 @@ export default function VehicleRegistration() {
                         </div>
                       </div>
 
-                      {/* Bảng danh sách trực tiếp */}
+                       {/* Bảng danh sách trực tiếp */}
                       <div style={{ marginTop: '32px' }}>
                         <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold', marginBottom: '16px', color: '#374151' }}>Danh sách đăng ký</h3>
                         <div style={{ overflowX: 'auto' }}>
@@ -1813,6 +1857,18 @@ export default function VehicleRegistration() {
                                 <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151', fontWeight: 600 }}>Loại xe</th>
                                 <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151', fontWeight: 600 }}>Hãng xe</th>
                                 <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151', fontWeight: 600 }}>Xe gửi 30 phút</th>
+                                {hasFeeBuildingConfig && (
+                                  <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151', fontWeight: 600 }}>Cấu hình phí</th>
+                                )}
+                                {hasExceededQuotaColumn && (
+                                  <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151', fontWeight: 600 }}>Vượt định mức</th>
+                                )}
+                                {hasOfficeConfirmation && (
+                                  <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151', fontWeight: 600 }}>Xác nhận văn phòng</th>
+                                )}
+                                {hasOfficeRejectionReason && (
+                                  <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151', fontWeight: 600 }}>Lý do từ chối</th>
+                                )}
                               </tr>
                             </thead>
                             <tbody>
@@ -1826,11 +1882,23 @@ export default function VehicleRegistration() {
                                     <td style={{ padding: '12px 8px', border: 'none' }}>{row.vehicleType}</td>
                                     <td style={{ padding: '12px 8px', border: 'none' }}>{row.brand}</td>
                                     <td style={{ padding: '12px 8px', border: 'none' }}>{row.parkingThirtyMin || '-'}</td>
+                                    {hasFeeBuildingConfig && (
+                                      <td style={{ padding: '12px 8px', border: 'none' }}>{row.feeBuildingConfigName || '-'}</td>
+                                    )}
+                                    {hasExceededQuotaColumn && (
+                                      <td style={{ padding: '12px 8px', border: 'none' }}>{row.isExceededQuota ? 'Có' : 'Không'}</td>
+                                    )}
+                                    {hasOfficeConfirmation && (
+                                      <td style={{ padding: '12px 8px', border: 'none' }}>{row.officeConfirmationLabel || '-'}</td>
+                                    )}
+                                    {hasOfficeRejectionReason && (
+                                      <td style={{ padding: '12px 8px', border: 'none' }}>{row.officeRejectionReason || '-'}</td>
+                                    )}
                                   </tr>
                                 ))
                               ) : (
                                 <tr>
-                                  <td colSpan={7} style={{ padding: '24px', textAlign: 'center', color: '#6b7280', border: 'none' }}>
+                                  <td colSpan={7 + (hasFeeBuildingConfig ? 1 : 0) + (hasExceededQuotaColumn ? 1 : 0) + (hasOfficeConfirmation ? 1 : 0) + (hasOfficeRejectionReason ? 1 : 0)} style={{ padding: '24px', textAlign: 'center', color: '#6b7280', border: 'none' }}>
                                     Không có dữ liệu
                                   </td>
                                 </tr>
