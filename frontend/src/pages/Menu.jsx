@@ -10,7 +10,7 @@ export default function Menu() {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
+
   // Filter states
   const [filterRegistrationType, setFilterRegistrationType] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
@@ -82,6 +82,7 @@ export default function Menu() {
           throw new Error(`HTTP ${res.status}`);
         }
         const data = await res.json();
+        console.log("API response at listview:", data);
         if (data.result?.RESULT === 'SUCCESS' || data.result?.STATUS_CODE === '0000') {
           const items = data.result?.DATA?.items || [];
           setRecords(items.filter((item) => isCreatedByCurrentUser(item) && isOnlineRegistration(item)));
@@ -242,8 +243,8 @@ export default function Menu() {
             {/* Hình thức đăng ký */}
             <div className="filter-group">
               <label className="filter-label">Hình thức đăng ký</label>
-              <select 
-                className="filter-select" 
+              <select
+                className="filter-select"
                 value={filterRegistrationType}
                 onChange={(e) => setFilterRegistrationType(e.target.value)}
               >
@@ -257,8 +258,8 @@ export default function Menu() {
             {/* Trạng thái */}
             <div className="filter-group">
               <label className="filter-label">Trạng thái</label>
-              <select 
-                className="filter-select" 
+              <select
+                className="filter-select"
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
               >
@@ -272,8 +273,8 @@ export default function Menu() {
             {/* Mặt bằng */}
             <div className="filter-group">
               <label className="filter-label">Mặt bằng</label>
-              <select 
-                className="filter-select" 
+              <select
+                className="filter-select"
                 value={filterHouse}
                 onChange={(e) => setFilterHouse(e.target.value)}
               >
@@ -288,16 +289,16 @@ export default function Menu() {
             <div className="filter-group">
               <label className="filter-label">Ngày đăng ký</label>
               <div className="filter-date-range">
-                <input 
-                  type="date" 
-                  className="filter-date-input" 
+                <input
+                  type="date"
+                  className="filter-date-input"
                   value={filterDateFrom}
                   onChange={(e) => setFilterDateFrom(e.target.value)}
                 />
                 <span className="filter-date-separator">→</span>
-                <input 
-                  type="date" 
-                  className="filter-date-input" 
+                <input
+                  type="date"
+                  className="filter-date-input"
                   value={filterDateTo}
                   onChange={(e) => setFilterDateTo(e.target.value)}
                 />
@@ -305,7 +306,7 @@ export default function Menu() {
             </div>
 
             {/* Reset filter button */}
-            <button 
+            <button
               className="btn-reset"
               onClick={() => {
                 setFilterRegistrationType('');
@@ -358,16 +359,16 @@ export default function Menu() {
                     </tr>
                   ) : (
                     filteredRecords.map((record, index) => (
-                      <tr 
+                      <tr
                         key={record.id}
                         style={{ cursor: 'pointer', transition: 'background-color 0.2s ease' }}
                         onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e0f2fe'}
                         onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                        onClick={() => navigate('/my/vehicle-registration', { 
-                          state: { 
-                            mode: 'excel', 
-                            selectedRecord: record 
-                          } 
+                        onClick={() => navigate('/my/vehicle-registration', {
+                          state: {
+                            mode: 'excel',
+                            selectedRecord: record
+                          }
                         })}
                       >
                         <td>{index + 1}</td>
@@ -380,13 +381,13 @@ export default function Menu() {
                             padding: '4px 12px',
                             borderRadius: '12px',
                             backgroundColor: getStatusColor(record.state?.key) === 'blue' ? '#e3f2fd' :
-                                             getStatusColor(record.state?.key) === 'yellow' ? '#fff3e0' :
-                                             getStatusColor(record.state?.key) === 'green' ? '#e8f5e9' :
-                                             getStatusColor(record.state?.key) === 'red' ? '#ffebee' : '#f5f5f5',
+                              getStatusColor(record.state?.key) === 'yellow' ? '#fff3e0' :
+                                getStatusColor(record.state?.key) === 'green' ? '#e8f5e9' :
+                                  getStatusColor(record.state?.key) === 'red' ? '#ffebee' : '#f5f5f5',
                             color: getStatusColor(record.state?.key) === 'blue' ? '#1976d2' :
-                                   getStatusColor(record.state?.key) === 'yellow' ? '#f57c00' :
-                                   getStatusColor(record.state?.key) === 'green' ? '#388e3c' :
-                                   getStatusColor(record.state?.key) === 'red' ? '#d32f2f' : '#616161',
+                              getStatusColor(record.state?.key) === 'yellow' ? '#f57c00' :
+                                getStatusColor(record.state?.key) === 'green' ? '#388e3c' :
+                                  getStatusColor(record.state?.key) === 'red' ? '#d32f2f' : '#616161',
                             fontWeight: '500'
                           }}>
                             {record.state?.label || ''}

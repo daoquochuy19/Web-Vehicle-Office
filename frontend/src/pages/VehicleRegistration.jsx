@@ -134,6 +134,22 @@ export default function VehicleRegistration() {
         note: selectedRecord.note || ''
       }))
 
+      // Populate allocation info from the record
+      if (selectedRecord.allocation) {
+        const alloc = selectedRecord.allocation;
+        setAllocationInfo({
+          allocation_car_quota: alloc.allocation_car_quota ?? alloc.car_quota ?? 0,
+          allocation_car_actual: alloc.allocation_car_actual ?? alloc.car_actual ?? 0,
+          allocation_car_pending: alloc.allocation_car_pending ?? alloc.car_pending ?? 0,
+          allocation_car_exceeded: alloc.allocation_car_exceeded ?? alloc.car_exceeded ?? 0,
+          allocation_motorbike_quota: alloc.allocation_motorbike_quota ?? alloc.motorbike_quota ?? 0,
+          allocation_motorbike_actual: alloc.allocation_motorbike_actual ?? alloc.motorbike_actual ?? 0,
+          allocation_motorbike_pending: alloc.allocation_motorbike_pending ?? alloc.motorbike_pending ?? 0,
+          allocation_motorbike_exceeded: alloc.allocation_motorbike_exceeded ?? alloc.motorbike_exceeded ?? 0,
+          is_exceeded_quota: alloc.is_exceeded_quota ?? false,
+        });
+      }
+
       // Populate line items
       if (selectedRecord.line_register_ids && Array.isArray(selectedRecord.line_register_ids)) {
         const lines = selectedRecord.line_register_ids.map((line, index) => ({
@@ -198,9 +214,9 @@ export default function VehicleRegistration() {
     fetchActivePlates()
   }, [isPlateSelectMode, formData.company])
 
-  // Fetch allocation info khi điền đầy đủ các trường trong Excel view hoặc đang view chi tiết bản ghi
+  // Fetch allocation info khi điền đầy đủ các trường trong Excel view (chỉ gọi khi tạo mới, không gọi khi đang xem chi tiết)
   useEffect(() => {
-    if (mode === 'excel' || isViewMode) {
+    if (mode === 'excel' && !isViewMode) {
       fetchAllocationInfo(formData)
     }
   }, [mode, isViewMode, formData.registrationType, formData.company, formData.contract, formData.buidingHouse])
@@ -238,9 +254,7 @@ export default function VehicleRegistration() {
         throw new Error(`HTTP ${res.status}`)
       }
       const response = await res.json()
-      console.log('get_allocation_info response:', response)
       const result = response.result?.DATA || response.DATA || null
-      console.log('get_allocation_info parsed result:', result)
       setAllocationInfo(result)
     } catch (err) {
       console.error('Fetch allocation info error:', err)
@@ -365,7 +379,7 @@ export default function VehicleRegistration() {
 
       const headers = data[0].map(h => typeof h === 'string' ? h.trim() : h);
       const expectedHeaders = ['STT', 'Tên nhân viên', 'Số điện thoại', 'Biển kiểm soát', 'Loại xe', 'Hãng xe', 'Xe gửi 30 phút', 'Hình thức thanh toán'];
-      
+
       const isFormatValid = expectedHeaders.every((h, i) => headers[i] === h);
       if (!isFormatValid) {
         alert("Định dạng file không đúng với file mẫu. Vui lòng tải file mẫu và thử lại.");
@@ -553,10 +567,10 @@ export default function VehicleRegistration() {
     if (!row.licensePlate) errors.push('Thiếu "Biển kiểm soát"')
     if (!row.vehicleType) errors.push('Thiếu "Loại xe"')
     if (!row.paymentMethod) errors.push('Thiếu "Hình thức thanh toán"')
-    
+
     const duplicate = parsedData.some(r => r.id !== row.id && r.licensePlate === row.licensePlate)
     if (duplicate) errors.push('Biển kiểm soát đã tồn tại')
-    
+
     return {
       ...row,
       isValid: errors.length === 0,
@@ -566,7 +580,7 @@ export default function VehicleRegistration() {
 
   const saveEditRow = () => {
     const validatedRow = validateRow(tempRowData)
-    setParsedData(prev => prev.map(row => 
+    setParsedData(prev => prev.map(row =>
       row.id === editingRowId ? validatedRow : row
     ))
     setEditingRowId(null)
@@ -610,7 +624,7 @@ export default function VehicleRegistration() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
       console.log('Upload document response:', data)
-      const attachmentId = 
+      const attachmentId =
         data.result?.DATA?.attachments?.[0]?.id ||
         data.result?.DATA?.attachment_id ||
         data.result?.attachments?.[0]?.id ||
@@ -1429,1088 +1443,1089 @@ export default function VehicleRegistration() {
           <div style={{ backgroundColor: '#fff', borderRadius: '16px', padding: '32px' }}>
             <section className="registration-form-container">
 
-          {/* ── LAYOUT: đổi biển → đơn cột, cấp mới → 2 cột ── */}
-          {isChangePlate ? (
+              {/* ── LAYOUT: đổi biển → đơn cột, cấp mới → 2 cột ── */}
+              {isChangePlate ? (
 
-            /* ════════════ VIEW ĐỔI BIỂN ════════════ */
-            <div className="form-left" style={{ maxWidth: 860, margin: '0 auto' }}>
-              <form onSubmit={handleSubmitChangePlate} className="vehicle-registration-form">
-                {renderTopRows()}
+                /* ════════════ VIEW ĐỔI BIỂN ════════════ */
+                <div className="form-left" style={{ maxWidth: 860, margin: '0 auto' }}>
+                  <form onSubmit={handleSubmitChangePlate} className="vehicle-registration-form">
+                    {renderTopRows()}
 
-                {/* Biển kiểm soát cũ — full width */}
-                <div className="form-group">
-                  <label className="form-label form-label-dark">Biển kiểm soát cũ <span style={{ color: '#ef4444' }}>*</span></label>
-                  <select
-                    value={oldLicensePlate}
-                    onChange={handleOldPlateChange}
-                    className="form-input"
-                    disabled={!formData.company || oldPlateLoading}
-                  >
-                    <option value="">
-                      {oldPlateLoading ? 'Đang tải...' : !formData.company ? '-- Chọn công ty trước --' : '-- Chọn biển kiểm soát cũ --'}
-                    </option>
-                    {oldPlateOptions.map((p) => (
-                      <option key={p.id} value={p.id}>{p.license_plate}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Biển mới + Biển số khác */}
-                <div className="form-input-row" style={{ alignItems: 'flex-end' }}>
-                  <div className="form-group">
-                    <label className="form-label form-label-dark">Biển kiểm soát mới <span style={{ color: '#ef4444' }}>*</span></label>
-                    <input
-                      type="text"
-                      value={newLicensePlate}
-                      onChange={(e) => setNewLicensePlate(e.target.value)}
-                      placeholder="-Nhập-"
-                      className="form-input"
-                    />
-                  </div>
-                  <div className="form-group" style={{ justifyContent: 'flex-end' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', paddingBottom: '16px' }}>
-                      <input type="checkbox" checked={altPlate} onChange={(e) => setAltPlate(e.target.checked)} style={{ width: '16px', height: '16px' }} />
-                      <span className="form-label form-label-dark" style={{ margin: 0 }}>Biển số khác</span>
-                    </label>
-                  </div>
-                </div>
-
-                {renderCompanyRow()}
-                {renderPremisesVehicleRow()}
-
-                {/* Loại sở hữu + Họ tên */}
-                <div className="form-input-row">
-                  <div className="form-group">
-                    <label className="form-label form-label-dark">Loại sở hữu</label>
-                    <input
-                      type="text"
-                      value={ownershipLabel}
-                      placeholder="-"
-                      className="form-input"
-                      readOnly
-                      style={{ backgroundColor: '#f8fafc', color: '#64748b', cursor: 'default' }}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label form-label-dark">Họ tên người sử dụng <span style={{ color: '#ef4444' }}>*</span></label>
-                    <input type="text" name="userName" value={formData.userName} onChange={handleChange} placeholder="-Nhập-" className="form-input" />
-                  </div>
-                </div>
-
-                {/* SĐT + Hình thức thanh toán */}
-                <div className="form-input-row">
-                  <div className="form-group">
-                    <label className="form-label form-label-dark">Số điện thoại người sử dụng</label>
-                    <input type="tel" name="phone" value={formData.phone} onChange={handleChange} placeholder="-Nhập-" className="form-input" />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label form-label-dark">Hình thức thanh toán <span style={{ color: '#ef4444' }}>*</span></label>
-                    <select name="paymentMethod" value={formData.paymentMethod} onChange={handleChange} className="form-input">
-                      <option value="">Thanh toán chung</option>
-                      <option value="separate">Thanh toán riêng</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Loại thẻ + Ngày áp dụng */}
-                <div className="form-input-row">
-                  <div className="form-group">
-                    <label className="form-label form-label-dark">Loại thẻ <span style={{ color: '#ef4444' }}>*</span></label>
-                    <select name="feeConfig" value={formData.feeConfig} onChange={handleChange} className="form-input">
-                      <option value="">-- Chọn loại thẻ --</option>
-                      {feeConfigOptions.map((fee) => (
-                        <option key={fee.id} value={fee.id}>{fee.name || fee.code}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label form-label-dark">Ngày đăng ký áp dụng <span style={{ color: '#ef4444' }}>*</span></label>
-                    <input type="date" name="effectiveDate" value={formData.effectiveDate} onChange={handleChange} className="form-input" />
-                  </div>
-                </div>
-
-                {/* Ghi chú — full width */}
-                <div className="form-group">
-                  <label className="form-label form-label-dark">Ghi chú</label>
-                  <textarea name="note" value={formData.note} onChange={handleChange} placeholder="Nhập ghi chú" className="form-textarea" rows={4} style={{ minHeight: '100px' }} />
-                </div>
-
-                {renderActions()}
-              </form>
-            </div>
-
-          ) : isLockCard ? (
-
-            /* ════════════ VIEW KHÓA THẺ ════════════ */
-            <div className="form-left" style={{ maxWidth: 860, margin: '0 auto' }}>
-              <form onSubmit={handleSubmitLockCard} className="vehicle-registration-form">
-                {renderTopRows()}
-
-                {/* Biển kiểm soát — full width */}
-                <div className="form-group">
-                  <label className="form-label form-label-dark">Biển kiểm soát <span style={{ color: '#ef4444' }}>*</span></label>
-                  <select
-                    value={oldLicensePlate}
-                    onChange={handleOldPlateChange}
-                    className="form-input"
-                    disabled={!formData.company || oldPlateLoading}
-                  >
-                    <option value="">
-                      {oldPlateLoading ? 'Đang tải...' : !formData.company ? '-- Chọn công ty trước --' : '-- Chọn biển kiểm soát --'}
-                    </option>
-                    {oldPlateOptions.map((p) => (
-                      <option key={p.id} value={p.id}>{p.license_plate}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {renderCompanyRow()}
-                {renderPremisesVehicleRow()}
-
-                {/* Loại sở hữu + Họ tên */}
-                <div className="form-input-row">
-                  <div className="form-group">
-                    <label className="form-label form-label-dark">Loại sở hữu</label>
-                    <input
-                      type="text"
-                      value={ownershipLabel}
-                      placeholder="-"
-                      className="form-input"
-                      readOnly
-                      style={{ backgroundColor: '#f8fafc', color: '#64748b', cursor: 'default' }}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label form-label-dark">Họ tên người sử dụng <span style={{ color: '#ef4444' }}>*</span></label>
-                    <input type="text" name="userName" value={formData.userName} onChange={handleChange} placeholder="-Nhập-" className="form-input" />
-                  </div>
-                </div>
-
-                {/* SĐT + Hình thức thanh toán */}
-                <div className="form-input-row">
-                  <div className="form-group">
-                    <label className="form-label form-label-dark">Số điện thoại người sử dụng</label>
-                    <input type="tel" name="phone" value={formData.phone} onChange={handleChange} placeholder="-Nhập-" className="form-input" />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label form-label-dark">Hình thức thanh toán <span style={{ color: '#ef4444' }}>*</span></label>
-                    <select name="paymentMethod" value={formData.paymentMethod} onChange={handleChange} className="form-input">
-                      <option value="">Thanh toán chung</option>
-                      <option value="separate">Thanh toán riêng</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Loại thẻ + Ngày áp dụng */}
-                <div className="form-input-row">
-                  <div className="form-group">
-                    <label className="form-label form-label-dark">Loại thẻ <span style={{ color: '#ef4444' }}>*</span></label>
-                    <select name="feeConfig" value={formData.feeConfig} onChange={handleChange} className="form-input">
-                      <option value="">-- Chọn loại thẻ --</option>
-                      {feeConfigOptions.map((fee) => (
-                        <option key={fee.id} value={fee.id}>{fee.name || fee.code}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label form-label-dark">Ngày đăng ký áp dụng <span style={{ color: '#ef4444' }}>*</span></label>
-                    <input type="date" name="effectiveDate" value={formData.effectiveDate} onChange={handleChange} className="form-input" />
-                  </div>
-                </div>
-
-                {/* Ghi chú — full width */}
-                <div className="form-group">
-                  <label className="form-label form-label-dark">Ghi chú</label>
-                  <textarea name="note" value={formData.note} onChange={handleChange} placeholder="Nhập ghi chú" className="form-textarea" rows={4} style={{ minHeight: '100px' }} />
-                </div>
-
-                {/* Cảnh báo */}
-                <p style={{ color: '#ef4444', fontWeight: 600, textAlign: 'center', margin: '8px 0 0' }}>
-                  Thời hạn khóa thẻ tối đa là 30 ngày! Vui lòng mở khóa thẻ trước khi hết hạn.
-                </p>
-
-                {renderActions()}
-              </form>
-            </div>
-
-          ) : isUnlockCard ? (
-
-            /* ════════════ VIEW MỞ THẺ ════════════ */
-            renderSingleColCardForm(handleSubmitUnlockCard)
-
-          ) : isReturnCard ? (
-
-            /* ════════════ VIEW TRẢ THẺ ════════════ */
-            renderSingleColCardForm(handleSubmitReturnCard)
-
-          ) : isDamagedReissue ? (
-
-            /* ════════════ VIEW HỎNG THẺ CẤP LẠI ════════════ */
-            renderReissueForm(handleSubmitDamagedReissue, true)
-
-          ) : isLostReissue ? (
-
-            /* ════════════ VIEW MẤT THẺ CẤP LẠI ════════════ */
-            renderReissueForm(handleSubmitLostReissue, false)
-
-          ) : (
-            isViewMode ? (
-              /* ════════════ VIEW RECORD DETAIL ════════════ */
-              <div style={{ backgroundColor: '#fff', borderRadius: '8px', width: '100%', maxWidth: '1200px', margin: '0 auto', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', overflow: 'hidden', height: 'fit-content' }}>
-                <div style={{ backgroundColor: '#f3f4f6', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 'bold', color: '#374151' }}>Chi tiết thông tin đăng ký</h2>
-                </div>
-
-                <div style={{ padding: '24px' }}>
-                  {/* Grid 4 cột hiển thị thông tin chung */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Hình thức đăng ký</label>
-                      <input 
-                        type="text" 
-                        value={selectedRecord?.registration_type?.label || ''} 
-                        readOnly 
-                        style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb', color: '#111827', fontSize: '0.875rem' }} 
-                      />
+                    {/* Biển kiểm soát cũ — full width */}
+                    <div className="form-group">
+                      <label className="form-label form-label-dark">Biển kiểm soát cũ <span style={{ color: '#ef4444' }}>*</span></label>
+                      <select
+                        value={oldLicensePlate}
+                        onChange={handleOldPlateChange}
+                        className="form-input"
+                        disabled={!formData.company || oldPlateLoading}
+                      >
+                        <option value="">
+                          {oldPlateLoading ? 'Đang tải...' : !formData.company ? '-- Chọn công ty trước --' : '-- Chọn biển kiểm soát cũ --'}
+                        </option>
+                        {oldPlateOptions.map((p) => (
+                          <option key={p.id} value={p.id}>{p.license_plate}</option>
+                        ))}
+                      </select>
                     </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Ngày đăng ký sử dụng</label>
-                      <input 
-                        type="text" 
-                        value={selectedRecord?.date_request_display || ''} 
-                        readOnly 
-                        style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb', color: '#111827', fontSize: '0.875rem' }} 
-                      />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Tên công ty</label>
-                      <input 
-                        type="text" 
-                        value={selectedRecord?.company_id?.name || ''} 
-                        readOnly 
-                        style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb', color: '#111827', fontSize: '0.875rem' }} 
-                      />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Số hợp đồng</label>
-                      <input 
-                        type="text" 
-                        value={selectedRecord?.contract_id?.name || ''} 
-                        readOnly 
-                        style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb', color: '#111827', fontSize: '0.875rem' }} 
-                      />
-                    </div>
-                  </div>
 
-                  {/* Phần 2 cột: mặt bằng + tài liệu bên trái, định mức bên phải */}
-                  <div style={{ display: 'flex', gap: '24px', marginBottom: '24px' }}>
-                    <div style={{ flex: 1 }}>
-                      <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Mặt bằng thuê</label>
-                      <input 
-                        type="text" 
-                        value={selectedRecord?.house_id?.name || ''} 
-                        readOnly 
-                        style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb', color: '#111827', fontSize: '0.875rem', marginBottom: '16px' }} 
-                      />
-
-                      {/* Tài liệu đính kèm */}
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                          <i className="fa-solid fa-paperclip" style={{ color: '#4b5563' }}></i>
-                          <span style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#374151' }}>Tài liệu đính kèm</span>
-                        </div>
-                        {selectedRecord?.attachment_ids && selectedRecord.attachment_ids.length > 0 ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            {selectedRecord.attachment_ids.map((att, idx) => (
-                              <div key={att.id || idx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <i className="fa-solid fa-file" style={{ color: '#3b82f6' }}></i>
-                                <a href={att.url || '#'} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.875rem', color: '#3b82f6', textDecoration: 'none' }}>
-                                  {att.name || `Tài liệu ${idx + 1}`}
-                                </a>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p style={{ color: '#6b7280', fontSize: '0.875rem', fontStyle: 'italic', margin: 0 }}>
-                            Không có tài liệu đính kèm.
-                          </p>
-                        )}
+                    {/* Biển mới + Biển số khác */}
+                    <div className="form-input-row" style={{ alignItems: 'flex-end' }}>
+                      <div className="form-group">
+                        <label className="form-label form-label-dark">Biển kiểm soát mới <span style={{ color: '#ef4444' }}>*</span></label>
+                        <input
+                          type="text"
+                          value={newLicensePlate}
+                          onChange={(e) => setNewLicensePlate(e.target.value)}
+                          placeholder="-Nhập-"
+                          className="form-input"
+                        />
                       </div>
-                    </div>
-
-                    <div style={{ flex: 1 }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', color: '#111827' }}>
-                        <thead>
-                          <tr style={{ background: '#e5e7eb' }}>
-                            <th style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}></th>
-                            <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Hợp đồng</th>
-                            <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Thực tế</th>
-                            <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Chờ xử lý</th>
-                            <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Vượt định mức</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr>
-                            <td style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}>Ô tô</td>
-                            <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
-                              {allocationLoading ? '...' : (allocationInfo?.allocation_car_quota ?? 0)}
-                            </td>
-                            <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
-                              {allocationLoading ? '...' : (allocationInfo?.allocation_car_actual ?? 0)}
-                            </td>
-                            <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
-                              {allocationLoading ? '...' : (allocationInfo?.allocation_car_pending ?? 0)}
-                            </td>
-                            <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db', color: (allocationLoading ? false : (allocationInfo?.allocation_car_exceeded ?? 0) > 0) ? '#dc2626' : '#111827' }}>
-                              {allocationLoading ? '...' : (allocationInfo?.allocation_car_exceeded ?? 0)}
-                            </td>
-                          </tr>
-                          <tr>
-                            <td style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}>Xe máy</td>
-                            <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
-                              {allocationLoading ? '...' : (allocationInfo?.allocation_motorbike_quota ?? 0)}
-                            </td>
-                            <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
-                              {allocationLoading ? '...' : (allocationInfo?.allocation_motorbike_actual ?? 0)}
-                            </td>
-                            <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
-                              {allocationLoading ? '...' : (allocationInfo?.allocation_motorbike_pending ?? 0)}
-                            </td>
-                            <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db', color: (allocationLoading ? false : (allocationInfo?.allocation_motorbike_exceeded ?? 0) > 0) ? '#dc2626' : '#111827' }}>
-                              {allocationLoading ? '...' : (allocationInfo?.allocation_motorbike_exceeded ?? 0)}
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  {/* Bảng danh sách trực tiếp */}
-                  <div style={{ marginTop: '32px' }}>
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold', marginBottom: '16px', color: '#374151' }}>Danh sách đăng ký</h3>
-                    <div style={{ overflowX: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'separate', fontSize: '0.875rem', color: '#111827', border: 'none' }}>
-                        <thead>
-                          <tr style={{ background: '#e5e7eb' }}>
-                            <th style={{ padding: '12px 8px', border: 'none', textAlign: 'center', color: '#374151', fontWeight: 600 }}>STT</th>
-                            <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151', fontWeight: 600 }}>Tên nhân viên</th>
-                            <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151', fontWeight: 600 }}>Số điện thoại</th>
-                            <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151', fontWeight: 600 }}>Biển kiểm soát</th>
-                            <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151', fontWeight: 600 }}>Loại xe</th>
-                            <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151', fontWeight: 600 }}>Hãng xe</th>
-                            <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151', fontWeight: 600 }}>Xe gửi 30 phút</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {parsedData.length > 0 ? (
-                            parsedData.map((row, idx) => (
-                              <tr key={row.id} style={{ background: idx % 2 === 0 ? 'transparent' : '#f9fafb' }}>
-                                <td style={{ padding: '12px 8px', border: 'none', textAlign: 'center' }}>{row.stt}</td>
-                                <td style={{ padding: '12px 8px', border: 'none' }}>{row.name}</td>
-                                <td style={{ padding: '12px 8px', border: 'none' }}>{row.phone}</td>
-                                <td style={{ padding: '12px 8px', border: 'none' }}>{row.licensePlate}</td>
-                                <td style={{ padding: '12px 8px', border: 'none' }}>{row.vehicleType}</td>
-                                <td style={{ padding: '12px 8px', border: 'none' }}>{row.brand}</td>
-                                <td style={{ padding: '12px 8px', border: 'none' }}>{row.parkingThirtyMin || '-'}</td>
-                              </tr>
-                            ))
-                          ) : (
-                            <tr>
-                              <td colSpan={7} style={{ padding: '24px', textAlign: 'center', color: '#6b7280', border: 'none' }}>
-                                Không có dữ liệu
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  {/* Actions footer */}
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '16px', marginTop: '32px', paddingTop: '16px', borderTop: '1px solid #d1d5db' }}>
-                    <button onClick={() => navigate('/my/menu')} style={{ padding: '8px 24px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#fff', color: '#374151', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <i className="fa-solid fa-xmark"></i> Đóng
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : mode === 'excel' ? (
-              /* ════════════ VIEW EXCEL IMPORT ════════════ */
-              <div style={{ backgroundColor: '#fff', borderRadius: '8px', width: '100%', maxWidth: '1200px', margin: '0 auto', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', overflow: 'hidden', height: 'fit-content' }}>
-              <div style={{ backgroundColor: '#f3f4f6', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 'bold', color: '#374151' }}>Nhập từ file Excel</h2>
-              </div>
-
-              <div style={{ padding: '24px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Hình thức đăng ký <span style={{ color: 'red' }}>(*)</span></label>
-                    <select name="registrationType" value={formData.registrationType} onChange={handleChange} style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb' }}>
-                      <option value="">-- Chọn hình thức đăng ký --</option>
-                      {registrationTypeOptions.map(opt => {
-                        const val = opt.value || opt[0];
-                        const lbl = opt.label || opt[1];
-                        return <option key={val} value={val}>{lbl}</option>;
-                      })}
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Ngày đăng ký sử dụng <span style={{ color: 'red' }}>(*)</span></label>
-                    <input type="date" name="effectiveDate" value={formData.effectiveDate} onChange={handleChange} style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb' }} />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Tên công ty <span style={{ color: 'red' }}>(*)</span></label>
-                    <select name="company" value={formData.company} onChange={handleChange} style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb' }}>
-                      <option value="">-- Chọn công ty --</option>
-                      {landlords.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Số hợp đồng <span style={{ color: 'red' }}>(*)</span></label>
-                    <select name="contract" value={formData.contract} onChange={handleChange} style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb' }}>
-                      <option value="">-- Chọn số hợp đồng --</option>
-                      {contractApartments.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: '24px', marginBottom: '24px' }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Mặt bằng thuê <span style={{ color: 'red' }}>(*)</span></label>
-                    <select name="buidingHouse" value={formData.buidingHouse} onChange={handleChange} style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb' }}>
-                      <option value="">{masterLoading ? 'Đang tải...' : '-- Chọn mặt bằng --'}</option>
-                      {buidingHouse.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </select>                      
-
-                    <div style={{ marginTop: '16px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                        <i className="fa-solid fa-paperclip" style={{ color: '#4b5563' }}></i>
-                        <span style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#374151' }}>Tài liệu đính kèm</span>
-                      </div>
-                      
-                      {docsLoading ? (
-                        <p style={{ color: '#3b82f6', fontSize: '0.875rem', fontStyle: 'italic', margin: 0 }}>
-                          ⏳ Đang tải danh sách tài liệu...
-                        </p>
-                      ) : requiredDocs.length === 0 ? (
-                        <p style={{ color: '#6b7280', fontSize: '0.875rem', fontStyle: 'italic', margin: 0 }}>
-                          {formData.registrationType
-                            ? 'Không có tài liệu yêu cầu cho hình thức này.'
-                            : 'Vui lòng chọn Hình thức đăng ký để xem danh sách tài liệu.'}
-                        </p>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                          {requiredDocs.map((doc, index) => {
-                            // ưu tiên document_parking_card_id (field thực tế API trả về)
-                            const docId = String(doc.document_parking_card_id ?? doc.id ?? doc.code ?? index)
-                            return (
-                              <div key={docId} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <span style={{ fontSize: '0.875rem', color: '#4b5563', flex: 1 }}>{doc.name || doc.display_name || doc.code}</span>
-                                {!docFileNames[docId] ? (
-                                  <label style={{ padding: '6px 12px', border: '1px dashed #3b82f6', borderRadius: '4px', color: '#3b82f6', cursor: 'pointer', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <i className="fa-solid fa-upload"></i> Tải lên
-                                    <input type="file" onChange={(e) => handleRequiredDocFileChange(e, docId)} style={{ display: 'none' }} />
-                                  </label>
-                                ) : (
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <span style={{ fontSize: '0.875rem', color: '#10b981', maxWidth: '150px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                      <i className="fa-solid fa-check"></i> {docFileNames[docId]}
-                                    </span>
-                                    <button type="button" onClick={() => {
-                                      setDocFileNames(prev => ({ ...prev, [docId]: '' }))
-                                      setDocFiles(prev => ({ ...prev, [docId]: null }))
-                                    }} style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', padding: '4px' }}>
-                                      <i className="fa-solid fa-trash"></i>
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            )
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div style={{ flex: 1 }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', color: '#111827' }}>
-                      <thead>
-                        <tr style={{ background: '#e5e7eb' }}>
-                          <th style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}></th>
-                          <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Hợp đồng</th>
-                          <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Thực tế</th>
-                          <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Chờ xử lý</th>
-                          <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Vượt định mức</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr>
-                          <td style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}>Ô tô</td>
-                          <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
-                            {allocationLoading ? '...' : (allocationInfo?.allocation_car_quota ?? 0)}
-                          </td>
-                          <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
-                            {allocationLoading ? '...' : (allocationInfo?.allocation_car_actual ?? 0)}
-                          </td>
-                          <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
-                            {allocationLoading ? '...' : (allocationInfo?.allocation_car_pending ?? 0)}
-                          </td>
-                          <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db', color: (allocationLoading ? false : (allocationInfo?.allocation_car_exceeded ?? 0) > 0) ? '#dc2626' : '#111827' }}>
-                            {allocationLoading ? '...' : (allocationInfo?.allocation_car_exceeded ?? 0)}
-                          </td>
-                        </tr>
-                        <tr>
-                          <td style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}>Xe máy</td>
-                          <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
-                            {allocationLoading ? '...' : (allocationInfo?.allocation_motorbike_quota ?? 0)}
-                          </td>
-                          <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
-                            {allocationLoading ? '...' : (allocationInfo?.allocation_motorbike_actual ?? 0)}
-                          </td>
-                          <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
-                            {allocationLoading ? '...' : (allocationInfo?.allocation_motorbike_pending ?? 0)}
-                          </td>
-                          <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db', color: (allocationLoading ? false : (allocationInfo?.allocation_motorbike_exceeded ?? 0) > 0) ? '#dc2626' : '#111827' }}>
-                            {allocationLoading ? '...' : (allocationInfo?.allocation_motorbike_exceeded ?? 0)}
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                <div style={{ borderBottom: '1px solid #d1d5db', display: 'flex', gap: '8px', marginBottom: '24px' }}>
-                  <button
-                    onClick={() => setActiveTab('upload')}
-                    style={{
-                      padding: '12px 24px',
-                      border: '1px solid #d1d5db',
-                      borderBottom: activeTab === 'upload' ? 'none' : '1px solid #d1d5db',
-                      background: activeTab === 'upload' ? '#fff' : '#f9fafb',
-                      color: activeTab === 'upload' ? '#10b981' : '#4b5563',
-                      marginBottom: '-1px',
-                      borderRadius: '4px 4px 0 0',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      fontWeight: activeTab === 'upload' ? 'bold' : 'normal'
-                    }}
-                  >
-                    <i className="fa-solid fa-file-import"></i> Chọn tệp nguồn
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('check')}
-                    style={{
-                      padding: '12px 24px',
-                      border: '1px solid #d1d5db',
-                      borderBottom: activeTab === 'check' ? 'none' : '1px solid #d1d5db',
-                      background: activeTab === 'check' ? '#fff' : '#f9fafb',
-                      color: activeTab === 'check' ? '#10b981' : '#4b5563',
-                      marginBottom: '-1px',
-                      borderRadius: '4px 4px 0 0',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      fontWeight: activeTab === 'check' ? 'bold' : 'normal'
-                    }}
-                  >
-                    <i className="fa-solid fa-check"></i> Kiểm tra dữ liệu
-                  </button>
-                </div>
-
-                <div style={{ minHeight: '300px' }}>
-                  {activeTab === 'upload' ? (
-                    <div style={{ border: '1px solid #d1d5db', borderRadius: '4px', padding: '24px' }}>
-                      <h3 style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '16px', color: '#111827' }}>Nhập danh sách đăng ký cấp mới/chuyển công ty/trả thẻ</h3>
-                      <ul style={{ paddingLeft: '20px', marginBottom: '24px', color: '#4b5563', lineHeight: '1.8' }}>
-                        <li>Nhập danh sách đăng ký cấp mới/chuyển công ty/trả thẻ vào hệ thống</li>
-                        <li style={{ color: '#ef4444' }}>Lưu ý: Vui lòng tải lên file excel nhỏ hơn 50MB</li>
-                      </ul>
-
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '32px' }}>
-                        <label style={{
-                          background: '#e11d48',
-                          color: '#fff',
-                          padding: '8px 16px',
-                          borderRadius: '4px',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          fontWeight: '500'
-                        }}>
-                          <i className="fa-solid fa-file-excel"></i> Chọn file
-                          <input type="file" accept=".xlsx, .xls" onChange={handleFileUpload} style={{ display: 'none' }} />
+                      <div className="form-group" style={{ justifyContent: 'flex-end' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', paddingBottom: '16px' }}>
+                          <input type="checkbox" checked={altPlate} onChange={(e) => setAltPlate(e.target.checked)} style={{ width: '16px', height: '16px' }} />
+                          <span className="form-label form-label-dark" style={{ margin: 0 }}>Biển số khác</span>
                         </label>
-                        <div style={{ flex: 1, padding: '8px 16px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb', color: '#9ca3af' }}>
-                          {excelFileName || 'Không có file được chọn'}
-                        </div>
-                      </div>
-
-                      <div>
-                        <span style={{ color: '#111827' }}>Tải file Import mẫu <a href="#" onClick={handleDownloadTemplate} style={{ color: '#ef4444', textDecoration: 'none', fontStyle: 'italic' }}>tại đây</a></span>
                       </div>
                     </div>
-                  ) : (
-                    <div>
-                      <h3 style={{ textAlign: 'center', color: '#10b981', margin: '0 0 24px 0', fontSize: '1.25rem', fontWeight: 'bold' }}>Kiểm tra dữ liệu nhập</h3>
 
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                        <div style={{ display: 'flex', gap: '32px' }}>
-                          <span style={{ color: '#10b981', fontWeight: '500' }}>Dữ liệu hợp lệ: {validCount}</span>
-                          <span style={{ color: '#ef4444', fontWeight: '500' }}>Dữ liệu không hợp lệ: {invalidCount}</span>
+                    {renderCompanyRow()}
+                    {renderPremisesVehicleRow()}
+
+                    {/* Loại sở hữu + Họ tên */}
+                    <div className="form-input-row">
+                      <div className="form-group">
+                        <label className="form-label form-label-dark">Loại sở hữu</label>
+                        <input
+                          type="text"
+                          value={ownershipLabel}
+                          placeholder="-"
+                          className="form-input"
+                          readOnly
+                          style={{ backgroundColor: '#f8fafc', color: '#64748b', cursor: 'default' }}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label form-label-dark">Họ tên người sử dụng <span style={{ color: '#ef4444' }}>*</span></label>
+                        <input type="text" name="userName" value={formData.userName} onChange={handleChange} placeholder="-Nhập-" className="form-input" />
+                      </div>
+                    </div>
+
+                    {/* SĐT + Hình thức thanh toán */}
+                    <div className="form-input-row">
+                      <div className="form-group">
+                        <label className="form-label form-label-dark">Số điện thoại người sử dụng</label>
+                        <input type="tel" name="phone" value={formData.phone} onChange={handleChange} placeholder="-Nhập-" className="form-input" />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label form-label-dark">Hình thức thanh toán <span style={{ color: '#ef4444' }}>*</span></label>
+                        <select name="paymentMethod" value={formData.paymentMethod} onChange={handleChange} className="form-input">
+                          <option value="">Thanh toán chung</option>
+                          <option value="separate">Thanh toán riêng</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Loại thẻ + Ngày áp dụng */}
+                    <div className="form-input-row">
+                      <div className="form-group">
+                        <label className="form-label form-label-dark">Loại thẻ <span style={{ color: '#ef4444' }}>*</span></label>
+                        <select name="feeConfig" value={formData.feeConfig} onChange={handleChange} className="form-input">
+                          <option value="">-- Chọn loại thẻ --</option>
+                          {feeConfigOptions.map((fee) => (
+                            <option key={fee.id} value={fee.id}>{fee.name || fee.code}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label form-label-dark">Ngày đăng ký áp dụng <span style={{ color: '#ef4444' }}>*</span></label>
+                        <input type="date" name="effectiveDate" value={formData.effectiveDate} onChange={handleChange} className="form-input" />
+                      </div>
+                    </div>
+
+                    {/* Ghi chú — full width */}
+                    <div className="form-group">
+                      <label className="form-label form-label-dark">Ghi chú</label>
+                      <textarea name="note" value={formData.note} onChange={handleChange} placeholder="Nhập ghi chú" className="form-textarea" rows={4} style={{ minHeight: '100px' }} />
+                    </div>
+
+                    {renderActions()}
+                  </form>
+                </div>
+
+              ) : isLockCard ? (
+
+                /* ════════════ VIEW KHÓA THẺ ════════════ */
+                <div className="form-left" style={{ maxWidth: 860, margin: '0 auto' }}>
+                  <form onSubmit={handleSubmitLockCard} className="vehicle-registration-form">
+                    {renderTopRows()}
+
+                    {/* Biển kiểm soát — full width */}
+                    <div className="form-group">
+                      <label className="form-label form-label-dark">Biển kiểm soát <span style={{ color: '#ef4444' }}>*</span></label>
+                      <select
+                        value={oldLicensePlate}
+                        onChange={handleOldPlateChange}
+                        className="form-input"
+                        disabled={!formData.company || oldPlateLoading}
+                      >
+                        <option value="">
+                          {oldPlateLoading ? 'Đang tải...' : !formData.company ? '-- Chọn công ty trước --' : '-- Chọn biển kiểm soát --'}
+                        </option>
+                        {oldPlateOptions.map((p) => (
+                          <option key={p.id} value={p.id}>{p.license_plate}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {renderCompanyRow()}
+                    {renderPremisesVehicleRow()}
+
+                    {/* Loại sở hữu + Họ tên */}
+                    <div className="form-input-row">
+                      <div className="form-group">
+                        <label className="form-label form-label-dark">Loại sở hữu</label>
+                        <input
+                          type="text"
+                          value={ownershipLabel}
+                          placeholder="-"
+                          className="form-input"
+                          readOnly
+                          style={{ backgroundColor: '#f8fafc', color: '#64748b', cursor: 'default' }}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label form-label-dark">Họ tên người sử dụng <span style={{ color: '#ef4444' }}>*</span></label>
+                        <input type="text" name="userName" value={formData.userName} onChange={handleChange} placeholder="-Nhập-" className="form-input" />
+                      </div>
+                    </div>
+
+                    {/* SĐT + Hình thức thanh toán */}
+                    <div className="form-input-row">
+                      <div className="form-group">
+                        <label className="form-label form-label-dark">Số điện thoại người sử dụng</label>
+                        <input type="tel" name="phone" value={formData.phone} onChange={handleChange} placeholder="-Nhập-" className="form-input" />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label form-label-dark">Hình thức thanh toán <span style={{ color: '#ef4444' }}>*</span></label>
+                        <select name="paymentMethod" value={formData.paymentMethod} onChange={handleChange} className="form-input">
+                          <option value="">Thanh toán chung</option>
+                          <option value="separate">Thanh toán riêng</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Loại thẻ + Ngày áp dụng */}
+                    <div className="form-input-row">
+                      <div className="form-group">
+                        <label className="form-label form-label-dark">Loại thẻ <span style={{ color: '#ef4444' }}>*</span></label>
+                        <select name="feeConfig" value={formData.feeConfig} onChange={handleChange} className="form-input">
+                          <option value="">-- Chọn loại thẻ --</option>
+                          {feeConfigOptions.map((fee) => (
+                            <option key={fee.id} value={fee.id}>{fee.name || fee.code}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label form-label-dark">Ngày đăng ký áp dụng <span style={{ color: '#ef4444' }}>*</span></label>
+                        <input type="date" name="effectiveDate" value={formData.effectiveDate} onChange={handleChange} className="form-input" />
+                      </div>
+                    </div>
+
+                    {/* Ghi chú — full width */}
+                    <div className="form-group">
+                      <label className="form-label form-label-dark">Ghi chú</label>
+                      <textarea name="note" value={formData.note} onChange={handleChange} placeholder="Nhập ghi chú" className="form-textarea" rows={4} style={{ minHeight: '100px' }} />
+                    </div>
+
+                    {/* Cảnh báo */}
+                    <p style={{ color: '#ef4444', fontWeight: 600, textAlign: 'center', margin: '8px 0 0' }}>
+                      Thời hạn khóa thẻ tối đa là 30 ngày! Vui lòng mở khóa thẻ trước khi hết hạn.
+                    </p>
+
+                    {renderActions()}
+                  </form>
+                </div>
+
+              ) : isUnlockCard ? (
+
+                /* ════════════ VIEW MỞ THẺ ════════════ */
+                renderSingleColCardForm(handleSubmitUnlockCard)
+
+              ) : isReturnCard ? (
+
+                /* ════════════ VIEW TRẢ THẺ ════════════ */
+                renderSingleColCardForm(handleSubmitReturnCard)
+
+              ) : isDamagedReissue ? (
+
+                /* ════════════ VIEW HỎNG THẺ CẤP LẠI ════════════ */
+                renderReissueForm(handleSubmitDamagedReissue, true)
+
+              ) : isLostReissue ? (
+
+                /* ════════════ VIEW MẤT THẺ CẤP LẠI ════════════ */
+                renderReissueForm(handleSubmitLostReissue, false)
+
+              ) : (
+                isViewMode ? (
+                  /* ════════════ VIEW RECORD DETAIL ════════════ */
+                  <div style={{ backgroundColor: '#fff', borderRadius: '8px', width: '100%', maxWidth: '1200px', margin: '0 auto', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', overflow: 'hidden', height: 'fit-content' }}>
+                    <div style={{ backgroundColor: '#f3f4f6', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 'bold', color: '#374151' }}>Chi tiết thông tin đăng ký</h2>
+                    </div>
+
+                    <div style={{ padding: '24px' }}>
+                      {/* Grid 4 cột hiển thị thông tin chung */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Hình thức đăng ký</label>
+                          <input
+                            type="text"
+                            value={selectedRecord?.registration_type?.label || ''}
+                            readOnly
+                            style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb', color: '#111827', fontSize: '0.875rem' }}
+                          />
                         </div>
-                        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-                          <button style={{
-                            background: '#3b82f6',
-                            color: '#fff',
-                            border: 'none',
-                            padding: '8px 16px',
-                            borderRadius: '4px',
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Ngày đăng ký sử dụng</label>
+                          <input
+                            type="text"
+                            value={selectedRecord?.date_request_display || ''}
+                            readOnly
+                            style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb', color: '#111827', fontSize: '0.875rem' }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Tên công ty</label>
+                          <input
+                            type="text"
+                            value={selectedRecord?.company_id?.name || ''}
+                            readOnly
+                            style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb', color: '#111827', fontSize: '0.875rem' }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Số hợp đồng</label>
+                          <input
+                            type="text"
+                            value={selectedRecord?.contract_id?.name || ''}
+                            readOnly
+                            style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb', color: '#111827', fontSize: '0.875rem' }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Phần 2 cột: mặt bằng + tài liệu bên trái, định mức bên phải */}
+                      <div style={{ display: 'flex', gap: '24px', marginBottom: '24px' }}>
+                        <div style={{ flex: 1 }}>
+                          <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Mặt bằng thuê</label>
+                          <input
+                            type="text"
+                            value={selectedRecord?.house_id?.name || ''}
+                            readOnly
+                            style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb', color: '#111827', fontSize: '0.875rem', marginBottom: '16px' }}
+                          />
+
+                          {/* Tài liệu đính kèm */}
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                              <i className="fa-solid fa-paperclip" style={{ color: '#4b5563' }}></i>
+                              <span style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#374151' }}>Tài liệu đính kèm</span>
+                            </div>
+                            {selectedRecord?.attachment_ids && selectedRecord.attachment_ids.length > 0 ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                {selectedRecord.attachment_ids.map((att, idx) => (
+                                  <div key={att.id || idx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <i className="fa-solid fa-file" style={{ color: '#3b82f6' }}></i>
+                                    <a href={att.url || '#'} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.875rem', color: '#3b82f6', textDecoration: 'none' }}>
+                                      {att.name || `Tài liệu ${idx + 1}`}
+                                    </a>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p style={{ color: '#6b7280', fontSize: '0.875rem', fontStyle: 'italic', margin: 0 }}>
+                                Không có tài liệu đính kèm.
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div style={{ flex: 1 }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', color: '#111827' }}>
+                            <thead>
+                              <tr style={{ background: '#e5e7eb' }}>
+                                <th style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}></th>
+                                <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Hợp đồng</th>
+                                <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Thực tế</th>
+                                <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Chờ xử lý</th>
+                                <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Vượt định mức</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr>
+                                <td style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}>Ô tô</td>
+                                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
+                                  {allocationLoading ? '...' : (allocationInfo?.allocation_car_quota ?? 0)}
+                                </td>
+                                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
+                                  {allocationLoading ? '...' : (allocationInfo?.allocation_car_actual ?? 0)}
+                                </td>
+                                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
+                                  {allocationLoading ? '...' : (allocationInfo?.allocation_car_pending ?? 0)}
+                                </td>
+                                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db', color: (allocationLoading ? false : (allocationInfo?.allocation_car_exceeded ?? 0) > 0) ? '#dc2626' : '#111827' }}>
+                                  {allocationLoading ? '...' : (allocationInfo?.allocation_car_exceeded ?? 0)}
+                                </td>
+                              </tr>
+                              <tr>
+                                <td style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}>Xe máy</td>
+                                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
+                                  {allocationLoading ? '...' : (allocationInfo?.allocation_motorbike_quota ?? 0)}
+                                </td>
+                                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
+                                  {allocationLoading ? '...' : (allocationInfo?.allocation_motorbike_actual ?? 0)}
+                                </td>
+                                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
+                                  {allocationLoading ? '...' : (allocationInfo?.allocation_motorbike_pending ?? 0)}
+                                </td>
+                                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db', color: (allocationLoading ? false : (allocationInfo?.allocation_motorbike_exceeded ?? 0) > 0) ? '#dc2626' : '#111827' }}>
+                                  {allocationLoading ? '...' : (allocationInfo?.allocation_motorbike_exceeded ?? 0)}
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      {/* Bảng danh sách trực tiếp */}
+                      <div style={{ marginTop: '32px' }}>
+                        <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold', marginBottom: '16px', color: '#374151' }}>Danh sách đăng ký</h3>
+                        <div style={{ overflowX: 'auto' }}>
+                          <table style={{ width: '100%', borderCollapse: 'separate', fontSize: '0.875rem', color: '#111827', border: 'none' }}>
+                            <thead>
+                              <tr style={{ background: '#e5e7eb' }}>
+                                <th style={{ padding: '12px 8px', border: 'none', textAlign: 'center', color: '#374151', fontWeight: 600 }}>STT</th>
+                                <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151', fontWeight: 600 }}>Tên nhân viên</th>
+                                <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151', fontWeight: 600 }}>Số điện thoại</th>
+                                <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151', fontWeight: 600 }}>Biển kiểm soát</th>
+                                <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151', fontWeight: 600 }}>Loại xe</th>
+                                <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151', fontWeight: 600 }}>Hãng xe</th>
+                                <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151', fontWeight: 600 }}>Xe gửi 30 phút</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {parsedData.length > 0 ? (
+                                parsedData.map((row, idx) => (
+                                  <tr key={row.id} style={{ background: idx % 2 === 0 ? 'transparent' : '#f9fafb' }}>
+                                    <td style={{ padding: '12px 8px', border: 'none', textAlign: 'center' }}>{row.stt}</td>
+                                    <td style={{ padding: '12px 8px', border: 'none' }}>{row.name}</td>
+                                    <td style={{ padding: '12px 8px', border: 'none' }}>{row.phone}</td>
+                                    <td style={{ padding: '12px 8px', border: 'none' }}>{row.licensePlate}</td>
+                                    <td style={{ padding: '12px 8px', border: 'none' }}>{row.vehicleType}</td>
+                                    <td style={{ padding: '12px 8px', border: 'none' }}>{row.brand}</td>
+                                    <td style={{ padding: '12px 8px', border: 'none' }}>{row.parkingThirtyMin || '-'}</td>
+                                  </tr>
+                                ))
+                              ) : (
+                                <tr>
+                                  <td colSpan={7} style={{ padding: '24px', textAlign: 'center', color: '#6b7280', border: 'none' }}>
+                                    Không có dữ liệu
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      {/* Actions footer */}
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '16px', marginTop: '32px', paddingTop: '16px', borderTop: '1px solid #d1d5db' }}>
+                        <button onClick={() => navigate('/my/menu')} style={{ padding: '8px 24px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#fff', color: '#374151', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <i className="fa-solid fa-xmark"></i> Đóng
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : mode === 'excel' ? (
+                  /* ════════════ VIEW EXCEL IMPORT ════════════ */
+                  <div style={{ backgroundColor: '#fff', borderRadius: '8px', width: '100%', maxWidth: '1200px', margin: '0 auto', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', overflow: 'hidden', height: 'fit-content' }}>
+                    <div style={{ backgroundColor: '#f3f4f6', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 'bold', color: '#374151' }}>Nhập từ file Excel</h2>
+                    </div>
+
+                    <div style={{ padding: '24px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Hình thức đăng ký <span style={{ color: 'red' }}>(*)</span></label>
+                          <select name="registrationType" value={formData.registrationType} onChange={handleChange} style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb' }}>
+                            <option value="">-- Chọn hình thức đăng ký --</option>
+                            {registrationTypeOptions.map(opt => {
+                              const val = opt.value || opt[0];
+                              const lbl = opt.label || opt[1];
+                              return <option key={val} value={val}>{lbl}</option>;
+                            })}
+                          </select>
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Ngày đăng ký sử dụng <span style={{ color: 'red' }}>(*)</span></label>
+                          <input type="date" name="effectiveDate" value={formData.effectiveDate} onChange={handleChange} style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb' }} />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Tên công ty <span style={{ color: 'red' }}>(*)</span></label>
+                          <select name="company" value={formData.company} onChange={handleChange} style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb' }}>
+                            <option value="">-- Chọn công ty --</option>
+                            {landlords.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Số hợp đồng <span style={{ color: 'red' }}>(*)</span></label>
+                          <select name="contract" value={formData.contract} onChange={handleChange} style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb' }}>
+                            <option value="">-- Chọn số hợp đồng --</option>
+                            {contractApartments.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '24px', marginBottom: '24px' }}>
+                        <div style={{ flex: 1 }}>
+                          <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '4px', color: '#4b5563' }}>Mặt bằng thuê <span style={{ color: 'red' }}>(*)</span></label>
+                          <select name="buidingHouse" value={formData.buidingHouse} onChange={handleChange} style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb' }}>
+                            <option value="">{masterLoading ? 'Đang tải...' : '-- Chọn mặt bằng --'}</option>
+                            {buidingHouse.map((c) => (
+                              <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                          </select>
+
+                          <div style={{ marginTop: '16px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                              <i className="fa-solid fa-paperclip" style={{ color: '#4b5563' }}></i>
+                              <span style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#374151' }}>Tài liệu đính kèm</span>
+                            </div>
+
+                            {docsLoading ? (
+                              <p style={{ color: '#3b82f6', fontSize: '0.875rem', fontStyle: 'italic', margin: 0 }}>
+                                ⏳ Đang tải danh sách tài liệu...
+                              </p>
+                            ) : requiredDocs.length === 0 ? (
+                              <p style={{ color: '#6b7280', fontSize: '0.875rem', fontStyle: 'italic', margin: 0 }}>
+                                {formData.registrationType
+                                  ? 'Không có tài liệu yêu cầu cho hình thức này.'
+                                  : 'Vui lòng chọn Hình thức đăng ký để xem danh sách tài liệu.'}
+                              </p>
+                            ) : (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                {requiredDocs.map((doc, index) => {
+                                  // ưu tiên document_parking_card_id (field thực tế API trả về)
+                                  const docId = String(doc.document_parking_card_id ?? doc.id ?? doc.code ?? index)
+                                  return (
+                                    <div key={docId} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                      <span style={{ fontSize: '0.875rem', color: '#4b5563', flex: 1 }}>{doc.name || doc.display_name || doc.code}</span>
+                                      {!docFileNames[docId] ? (
+                                        <label style={{ padding: '6px 12px', border: '1px dashed #3b82f6', borderRadius: '4px', color: '#3b82f6', cursor: 'pointer', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                          <i className="fa-solid fa-upload"></i> Tải lên
+                                          <input type="file" onChange={(e) => handleRequiredDocFileChange(e, docId)} style={{ display: 'none' }} />
+                                        </label>
+                                      ) : (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                          <span style={{ fontSize: '0.875rem', color: '#10b981', maxWidth: '150px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                            <i className="fa-solid fa-check"></i> {docFileNames[docId]}
+                                          </span>
+                                          <button type="button" onClick={() => {
+                                            setDocFileNames(prev => ({ ...prev, [docId]: '' }))
+                                            setDocFiles(prev => ({ ...prev, [docId]: null }))
+                                          }} style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', padding: '4px' }}>
+                                            <i className="fa-solid fa-trash"></i>
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div style={{ flex: 1 }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', color: '#111827' }}>
+                            <thead>
+                              <tr style={{ background: '#e5e7eb' }}>
+                                <th style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}></th>
+                                <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Hợp đồng</th>
+                                <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Thực tế</th>
+                                <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Chờ xử lý</th>
+                                <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #d1d5db' }}>Vượt định mức</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr>
+                                <td style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}>Ô tô</td>
+                                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
+                                  {allocationLoading ? '...' : (allocationInfo?.allocation_car_quota ?? 0)}
+                                </td>
+                                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
+                                  {allocationLoading ? '...' : (allocationInfo?.allocation_car_actual ?? 0)}
+                                </td>
+                                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
+                                  {allocationLoading ? '...' : (allocationInfo?.allocation_car_pending ?? 0)}
+                                </td>
+                                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db', color: (allocationLoading ? false : (allocationInfo?.allocation_car_exceeded ?? 0) > 0) ? '#dc2626' : '#111827' }}>
+                                  {allocationLoading ? '...' : (allocationInfo?.allocation_car_exceeded ?? 0)}
+                                </td>
+                              </tr>
+                              <tr>
+                                <td style={{ padding: '12px 8px', border: '1px solid #d1d5db' }}>Xe máy</td>
+                                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
+                                  {allocationLoading ? '...' : (allocationInfo?.allocation_motorbike_quota ?? 0)}
+                                </td>
+                                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
+                                  {allocationLoading ? '...' : (allocationInfo?.allocation_motorbike_actual ?? 0)}
+                                </td>
+                                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db' }}>
+                                  {allocationLoading ? '...' : (allocationInfo?.allocation_motorbike_pending ?? 0)}
+                                </td>
+                                <td style={{ padding: '12px 8px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #d1d5db', color: (allocationLoading ? false : (allocationInfo?.allocation_motorbike_exceeded ?? 0) > 0) ? '#dc2626' : '#111827' }}>
+                                  {allocationLoading ? '...' : (allocationInfo?.allocation_motorbike_exceeded ?? 0)}
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      <div style={{ borderBottom: '1px solid #d1d5db', display: 'flex', gap: '8px', marginBottom: '24px' }}>
+                        <button
+                          onClick={() => setActiveTab('upload')}
+                          style={{
+                            padding: '12px 24px',
+                            border: '1px solid #d1d5db',
+                            borderBottom: activeTab === 'upload' ? 'none' : '1px solid #d1d5db',
+                            background: activeTab === 'upload' ? '#fff' : '#f9fafb',
+                            color: activeTab === 'upload' ? '#10b981' : '#4b5563',
+                            marginBottom: '-1px',
+                            borderRadius: '4px 4px 0 0',
+                            cursor: 'pointer',
                             display: 'flex',
                             alignItems: 'center',
                             gap: '8px',
-                            cursor: 'pointer'
-                          }}>
-                            <i className="fa-solid fa-file-export"></i> Xuất dữ liệu lỗi
-                          </button>
-                          <select
-                            value={filterType}
-                            onChange={(e) => {
-                              const value = e.target.value
-                              setFilterType(value)
-                              if (value === 'invalid') {
-                                setShowManualRow(false)
-                              }
-                            }}
-                            style={{
-                              padding: '8px',
-                              border: '1px solid #ef4444',
-                              borderRadius: '4px',
-                              color: '#ef4444',
-                              background: '#fff',
-                              minWidth: '200px',
-                              outline: 'none'
-                            }}
-                          >
-                            <option value="valid">Dữ liệu hợp lệ</option>
-                            <option value="invalid">Dữ liệu không hợp lệ</option>
-                            <option value="all">Tất cả</option>
-                          </select>
-                        </div>
+                            fontWeight: activeTab === 'upload' ? 'bold' : 'normal'
+                          }}
+                        >
+                          <i className="fa-solid fa-file-import"></i> Chọn tệp nguồn
+                        </button>
+                        <button
+                          onClick={() => setActiveTab('check')}
+                          style={{
+                            padding: '12px 24px',
+                            border: '1px solid #d1d5db',
+                            borderBottom: activeTab === 'check' ? 'none' : '1px solid #d1d5db',
+                            background: activeTab === 'check' ? '#fff' : '#f9fafb',
+                            color: activeTab === 'check' ? '#10b981' : '#4b5563',
+                            marginBottom: '-1px',
+                            borderRadius: '4px 4px 0 0',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            fontWeight: activeTab === 'check' ? 'bold' : 'normal'
+                          }}
+                        >
+                          <i className="fa-solid fa-check"></i> Kiểm tra dữ liệu
+                        </button>
                       </div>
 
-                      <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'separate', fontSize: '0.875rem', color: '#111827', border: 'none' }}>
-                          <thead>
-                            <tr style={{ background: '#e5e7eb' }}>
-                              <th style={{ padding: '12px 8px', border: 'none' }}>STT</th>
-                              <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151' }}>Tên nhân viên</th>
-                              <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151' }}>Số điện thoại</th>
-                              <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151' }}>Biển kiểm soát</th>
-                              <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151' }}>Loại xe</th>
-                              <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151' }}>Hãng xe</th>
-                              <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151' }}>Xe gửi 30 phút</th>
-                              <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151' }}>Hình thức thanh toán</th>
-                              {showErrorColumn && (
-                                <th style={{ padding: '12px 8px', border: 'none', textAlign: 'center', color: '#374151' }}>Mô tả lỗi</th>
-                              )}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {displayedData.length === 0 && !showManualRow ? (
-                              <tr>
-                                <td colSpan={showErrorColumn ? 10 : 9} style={{ padding: '24px', textAlign: 'center', color: '#6b7280', border: 'none' }}>Không có dữ liệu</td>
-                              </tr>
-                            ) : (
-                              displayedData.map((row, idx) => {
-                                const isEditing = editingRowId === row.id
-                                const currentData = isEditing ? tempRowData : row
-                                return (
-                                <tr 
-                                  key={row.id} 
-                                  ref={isEditing ? editingRowRef : null}
-                                  style={{ 
-                                    background: idx % 2 === 0 ? 'transparent' : '#f9fafb'
-                                  }}>
-                                  <td style={{ padding: '12px 8px', border: 'none', textAlign: 'center' }}>{row.stt}</td>
-                                  <td style={{ padding: '12px 8px', border: 'none' }}>
-                                    {isEditing ? (
-                                      <input
-                                        type="text"
-                                        value={currentData.name}
-                                        onChange={(e) => handleTempRowChange('name', e.target.value)}
-                                        style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: '4px', outline: 'none' }}
-                                      />
-                                    ) : (
-                                      <span style={{ display: 'block', width: '100%' }}>{row.name}</span>
-                                    )}
-                                  </td>
-                                  <td style={{ padding: '12px 8px', border: 'none' }}>
-                                    {isEditing ? (
-                                      <input
-                                        type="text"
-                                        value={currentData.phone}
-                                        onChange={(e) => handleTempRowChange('phone', e.target.value)}
-                                        style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: '4px', outline: 'none' }}
-                                      />
-                                    ) : (
-                                      <span style={{ display: 'block', width: '100%' }}>{row.phone}</span>
-                                    )}
-                                  </td>
-                                  <td style={{ padding: '12px 8px', border: 'none' }}>
-                                    {isEditing ? (
-                                      <input
-                                        type="text"
-                                        value={currentData.licensePlate}
-                                        onChange={(e) => handleTempRowChange('licensePlate', e.target.value)}
-                                        style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: '4px', outline: 'none' }}
-                                      />
-                                    ) : (
-                                      <span style={{ display: 'block', width: '100%' }}>{row.licensePlate}</span>
-                                    )}
-                                  </td>
-                                  <td style={{ padding: '12px 8px', border: 'none' }}>
-                                    {isEditing ? (
-                                      <input
-                                        type="text"
-                                        value={currentData.vehicleType}
-                                        onChange={(e) => handleTempRowChange('vehicleType', e.target.value)}
-                                        style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: '4px', outline: 'none' }}
-                                      />
-                                    ) : (
-                                      <span style={{ display: 'block', width: '100%' }}>{row.vehicleType}</span>
-                                    )}
-                                  </td>
-                                  <td style={{ padding: '12px 8px', border: 'none' }}>
-                                    {isEditing ? (
-                                      <input
-                                        type="text"
-                                        value={currentData.brand}
-                                        onChange={(e) => handleTempRowChange('brand', e.target.value)}
-                                        style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: '4px', outline: 'none' }}
-                                      />
-                                    ) : (
-                                      <span style={{ display: 'block', width: '100%' }}>{row.brand}</span>
-                                    )}
-                                  </td>
-                                  <td style={{ padding: '12px 8px', border: 'none' }}>
-                                    {isEditing ? (
-                                      <select
-                                        value={currentData.parkingThirtyMin}
-                                        onChange={(e) => handleTempRowChange('parkingThirtyMin', e.target.value)}
-                                        style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: '4px', outline: 'none', background: '#fff' }}
-                                      >
-                                        <option value="">Chọn...</option>
-                                        <option value="Có">Có</option>
-                                        <option value="Không">Không</option>
-                                      </select>
-                                    ) : (
-                                      <span style={{ display: 'block', width: '100%' }}>{row.parkingThirtyMin || '-'}</span>
-                                    )}
-                                  </td>
-                                  <td style={{ padding: '12px 8px', border: 'none' }}>
-                                    {isEditing ? (
-                                      <input
-                                        type="text"
-                                        value={currentData.paymentMethod}
-                                        onChange={(e) => handleTempRowChange('paymentMethod', e.target.value)}
-                                        style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: '4px', outline: 'none' }}
-                                      />
-                                    ) : (
-                                      <span style={{ display: 'block', width: '100%' }}>{row.paymentMethod}</span>
-                                    )}
-                                  </td>
-                                  {showErrorColumn && (
-                                    <td style={{ padding: '12px 8px', border: 'none', textAlign: 'center', color: currentData.isValid ? '#10b981' : '#ef4444', fontWeight: '500' }}>
-                                      {currentData.isValid ? '' : (currentData.errors || []).join(', ')}
-                                    </td>
-                                  )}
-                                  <td style={{ padding: '12px 8px', border: 'none', textAlign: 'center' }}>
-                                    {isEditing ? (
-                                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                                        <button
-                                          type="button"
-                                          onClick={saveEditRow}
-                                          style={{ background: '#10b981', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}
-                                          title="Lưu"
-                                        >
-                                          <i className="fa-solid fa-check"></i>
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={cancelEditRow}
-                                          style={{ background: '#6b7280', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}
-                                          title="Hủy"
-                                        >
-                                          <i className="fa-solid fa-xmark"></i>
-                                        </button>
-                                      </div>
-                                    ) : (
-                                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                                        <button
-                                          type="button"
-                                          onClick={() => startEditRow(row)}
-                                          style={{ background: 'transparent', border: 'none', color: '#3b82f6', cursor: 'pointer', fontSize: '1rem' }}
-                                          title="Sửa"
-                                        >
-                                          <i className="fa-solid fa-pen-to-square"></i>
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => removeRow(row.id)}
-                                          style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1rem' }}
-                                          title="Xóa dòng"
-                                        >
-                                          <i className="fa-solid fa-trash"></i>
-                                        </button>
-                                      </div>
-                                    )}
-                                  </td>
-                                </tr>
-                              )})
-                            )}
-                            {showManualRow && (
-                              <tr style={{ background: '#f9fafb' }}>
-                                <td style={{ padding: '12px 8px', border: 'none', textAlign: 'center' }}>+</td>
-                                <td style={{ padding: '12px 8px', border: 'none' }}>
-                                  <input
-                                    type="text"
-                                    name="name"
-                                    value={manualRow.name}
-                                    onChange={handleManualRowChange}
-                                    placeholder="Nhập tên..."
-                                    style={{ width: '100%', border: 'none', outline: 'none', minHeight: '38px', background: 'transparent' }}
-                                  />
-                                </td>
-                                <td style={{ padding: '12px 8px', border: 'none' }}>
-                                  <input
-                                    type="text"
-                                    name="phone"
-                                    value={manualRow.phone}
-                                    onChange={handleManualRowChange}
-                                    placeholder="Nhập SĐT..."
-                                    style={{ width: '100%', border: 'none', outline: 'none', minHeight: '38px', background: 'transparent' }}
-                                  />
-                                </td>
-                                <td style={{ padding: '12px 8px', border: 'none' }}>
-                                  <input
-                                    type="text"
-                                    name="licensePlate"
-                                    value={manualRow.licensePlate}
-                                    onChange={handleManualRowChange}
-                                    placeholder="Nhập biển..."
-                                    style={{ width: '100%', border: 'none', outline: 'none', minHeight: '38px', background: 'transparent' }}
-                                  />
-                                </td>
-                                <td style={{ padding: '12px 8px', border: 'none' }}>
-                                  <select
-                                    name="vehicleType"
-                                    value={manualRow.vehicleType}
-                                    onChange={handleManualRowChange}
-                                    style={{ width: '100%', border: 'none', outline: 'none', minHeight: '38px', background: 'transparent' }}
-                                  >
-                                    <option value="">Chọn loại xe...</option>
-                                    {vehicleTypeOptions.map(option => (
-                                      <option key={option.id} value={option.name}>{option.name}</option>
-                                    ))}
-                                  </select>
-                                </td>
-                                <td style={{ padding: '12px 8px', border: 'none' }}>
-                                  <select
-                                    name="brand"
-                                    value={manualRow.brand}
-                                    onChange={handleManualRowChange}
-                                    style={{ width: '100%', border: 'none', outline: 'none', minHeight: '38px', background: 'transparent' }}
-                                  >
-                                    <option value="">Chọn hãng xe...</option>
-                                    {fleetVehicleModelBrand.map(option => (
-                                      <option key={option.id} value={option.name}>{option.name}</option>
-                                    ))}
-                                  </select>
-                                </td>
-                                <td style={{ padding: '12px 8px', border: 'none' }}>
-                                   <select
-                                     name="parkingThirtyMin"
-                                     value={manualRow.parkingThirtyMin}
-                                     onChange={handleManualRowChange}
-                                     style={{ width: '100%', border: 'none', outline: 'none', minHeight: '38px', background: 'transparent' }}
-                                   >
-                                     <option value="">Chọn...</option>
-                                     <option value="Có">Có</option>
-                                     <option value="Không">Không</option>
-                                   </select>
-                                 </td>
-                                <td style={{ padding: '12px 8px', border: 'none' }}>
-                                  <select
-                                    name="paymentMethod"
-                                    value={manualRow.paymentMethod}
-                                    onChange={handleManualRowChange}
-                                    style={{ width: '100%', border: 'none', outline: 'none', minHeight: '38px', background: 'transparent' }}
-                                  >
-                                    <option value="">Chọn thanh toán...</option>
-                                    {paymentTypeOptions.map(option => (
-                                      <option key={option.value} value={option.label}>{option.label}</option>
-                                    ))}
-                                  </select>
-                                </td>
-                                {showErrorColumn && <td style={{ padding: '12px 8px', border: 'none' }}></td>}
-                                <td style={{ padding: '12px 8px', border: 'none', textAlign: 'center' }}>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      addManualRow()
-                                      setShowManualRow(false)
-                                    }}
-                                    style={{ padding: '8px 12px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
-                                  >
-                                    Lưu
-                                  </button>
-                                </td>
-                              </tr>
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
+                      <div style={{ minHeight: '300px' }}>
+                        {activeTab === 'upload' ? (
+                          <div style={{ border: '1px solid #d1d5db', borderRadius: '4px', padding: '24px' }}>
+                            <h3 style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '16px', color: '#111827' }}>Nhập danh sách đăng ký cấp mới/chuyển công ty/trả thẻ</h3>
+                            <ul style={{ paddingLeft: '20px', marginBottom: '24px', color: '#4b5563', lineHeight: '1.8' }}>
+                              <li>Nhập danh sách đăng ký cấp mới/chuyển công ty/trả thẻ vào hệ thống</li>
+                              <li style={{ color: '#ef4444' }}>Lưu ý: Vui lòng tải lên file excel nhỏ hơn 50MB</li>
+                            </ul>
 
-                      <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        {filterType !== 'invalid' && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (showManualRow) {
-                                addManualRow();
-                              } else {
-                                setShowManualRow(true);
-                              }
-                            }}
-                            style={{
-                              background: 'transparent',
-                              border: 'none',
-                              color: '#2563eb',
-                              fontWeight: '600',
-                              cursor: 'pointer',
-                              padding: '0',
-                              textDecoration: 'underline',
-                            }}
-                          >
-                            Thêm một dòng
-                          </button>
-                        )}
-                        {showManualRow && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setShowManualRow(false)
-                              setManualRow({
-                                name: '',
-                                phone: '',
-                                licensePlate: '',
-                                vehicleType: '',
-                                brand: '',
-                                parkingThirtyMin: '',
-                                paymentMethod: '',
-                              })
-                            }}
-                            style={{
-                              background: 'transparent',
-                              border: 'none',
-                              color: '#6b7280',
-                              cursor: 'pointer',
-                              padding: '0',
-                              textDecoration: 'underline',
-                            }}
-                          >
-                            Hủy
-                          </button>
-                        )}
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
-                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                          <button 
-                            onClick={handlePrevPage}
-                            disabled={currentPage === 1}
-                            style={{ 
-                              padding: '4px 12px', 
-                              border: '1px solid #d1d5db', 
-                              background: currentPage === 1 ? '#f3f4f6' : '#fff', 
-                              borderRadius: '4px',
-                              cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
-                              color: currentPage === 1 ? '#9ca3af' : '#374151'
-                            }}
-                          >
-                            &lt;
-                          </button>
-                          {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                            <button
-                              key={page}
-                              onClick={() => handlePageChange(page)}
-                              style={{
-                                padding: '4px 12px',
-                                border: '1px solid #d1d5db',
-                                background: currentPage === page ? '#e5e7eb' : '#fff',
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '32px' }}>
+                              <label style={{
+                                background: '#e11d48',
+                                color: '#fff',
+                                padding: '8px 16px',
                                 borderRadius: '4px',
                                 cursor: 'pointer',
-                                color: currentPage === page ? '#111827' : '#374151'
-                              }}
-                            >
-                              {page}
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                fontWeight: '500'
+                              }}>
+                                <i className="fa-solid fa-file-excel"></i> Chọn file
+                                <input type="file" accept=".xlsx, .xls" onChange={handleFileUpload} style={{ display: 'none' }} />
+                              </label>
+                              <div style={{ flex: 1, padding: '8px 16px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#f9fafb', color: '#9ca3af' }}>
+                                {excelFileName || 'Không có file được chọn'}
+                              </div>
+                            </div>
+
+                            <div>
+                              <span style={{ color: '#111827' }}>Tải file Import mẫu <a href="#" onClick={handleDownloadTemplate} style={{ color: '#ef4444', textDecoration: 'none', fontStyle: 'italic' }}>tại đây</a></span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <h3 style={{ textAlign: 'center', color: '#10b981', margin: '0 0 24px 0', fontSize: '1.25rem', fontWeight: 'bold' }}>Kiểm tra dữ liệu nhập</h3>
+
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                              <div style={{ display: 'flex', gap: '32px' }}>
+                                <span style={{ color: '#10b981', fontWeight: '500' }}>Dữ liệu hợp lệ: {validCount}</span>
+                                <span style={{ color: '#ef4444', fontWeight: '500' }}>Dữ liệu không hợp lệ: {invalidCount}</span>
+                              </div>
+                              <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                                <button style={{
+                                  background: '#3b82f6',
+                                  color: '#fff',
+                                  border: 'none',
+                                  padding: '8px 16px',
+                                  borderRadius: '4px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '8px',
+                                  cursor: 'pointer'
+                                }}>
+                                  <i className="fa-solid fa-file-export"></i> Xuất dữ liệu lỗi
+                                </button>
+                                <select
+                                  value={filterType}
+                                  onChange={(e) => {
+                                    const value = e.target.value
+                                    setFilterType(value)
+                                    if (value === 'invalid') {
+                                      setShowManualRow(false)
+                                    }
+                                  }}
+                                  style={{
+                                    padding: '8px',
+                                    border: '1px solid #ef4444',
+                                    borderRadius: '4px',
+                                    color: '#ef4444',
+                                    background: '#fff',
+                                    minWidth: '200px',
+                                    outline: 'none'
+                                  }}
+                                >
+                                  <option value="valid">Dữ liệu hợp lệ</option>
+                                  <option value="invalid">Dữ liệu không hợp lệ</option>
+                                  <option value="all">Tất cả</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            <div style={{ overflowX: 'auto' }}>
+                              <table style={{ width: '100%', borderCollapse: 'separate', fontSize: '0.875rem', color: '#111827', border: 'none' }}>
+                                <thead>
+                                  <tr style={{ background: '#e5e7eb' }}>
+                                    <th style={{ padding: '12px 8px', border: 'none' }}>STT</th>
+                                    <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151' }}>Tên nhân viên</th>
+                                    <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151' }}>Số điện thoại</th>
+                                    <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151' }}>Biển kiểm soát</th>
+                                    <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151' }}>Loại xe</th>
+                                    <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151' }}>Hãng xe</th>
+                                    <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151' }}>Xe gửi 30 phút</th>
+                                    <th style={{ padding: '12px 8px', border: 'none', textAlign: 'left', color: '#374151' }}>Hình thức thanh toán</th>
+                                    {showErrorColumn && (
+                                      <th style={{ padding: '12px 8px', border: 'none', textAlign: 'center', color: '#374151' }}>Mô tả lỗi</th>
+                                    )}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {displayedData.length === 0 && !showManualRow ? (
+                                    <tr>
+                                      <td colSpan={showErrorColumn ? 10 : 9} style={{ padding: '24px', textAlign: 'center', color: '#6b7280', border: 'none' }}>Không có dữ liệu</td>
+                                    </tr>
+                                  ) : (
+                                    displayedData.map((row, idx) => {
+                                      const isEditing = editingRowId === row.id
+                                      const currentData = isEditing ? tempRowData : row
+                                      return (
+                                        <tr
+                                          key={row.id}
+                                          ref={isEditing ? editingRowRef : null}
+                                          style={{
+                                            background: idx % 2 === 0 ? 'transparent' : '#f9fafb'
+                                          }}>
+                                          <td style={{ padding: '12px 8px', border: 'none', textAlign: 'center' }}>{row.stt}</td>
+                                          <td style={{ padding: '12px 8px', border: 'none' }}>
+                                            {isEditing ? (
+                                              <input
+                                                type="text"
+                                                value={currentData.name}
+                                                onChange={(e) => handleTempRowChange('name', e.target.value)}
+                                                style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: '4px', outline: 'none' }}
+                                              />
+                                            ) : (
+                                              <span style={{ display: 'block', width: '100%' }}>{row.name}</span>
+                                            )}
+                                          </td>
+                                          <td style={{ padding: '12px 8px', border: 'none' }}>
+                                            {isEditing ? (
+                                              <input
+                                                type="text"
+                                                value={currentData.phone}
+                                                onChange={(e) => handleTempRowChange('phone', e.target.value)}
+                                                style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: '4px', outline: 'none' }}
+                                              />
+                                            ) : (
+                                              <span style={{ display: 'block', width: '100%' }}>{row.phone}</span>
+                                            )}
+                                          </td>
+                                          <td style={{ padding: '12px 8px', border: 'none' }}>
+                                            {isEditing ? (
+                                              <input
+                                                type="text"
+                                                value={currentData.licensePlate}
+                                                onChange={(e) => handleTempRowChange('licensePlate', e.target.value)}
+                                                style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: '4px', outline: 'none' }}
+                                              />
+                                            ) : (
+                                              <span style={{ display: 'block', width: '100%' }}>{row.licensePlate}</span>
+                                            )}
+                                          </td>
+                                          <td style={{ padding: '12px 8px', border: 'none' }}>
+                                            {isEditing ? (
+                                              <input
+                                                type="text"
+                                                value={currentData.vehicleType}
+                                                onChange={(e) => handleTempRowChange('vehicleType', e.target.value)}
+                                                style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: '4px', outline: 'none' }}
+                                              />
+                                            ) : (
+                                              <span style={{ display: 'block', width: '100%' }}>{row.vehicleType}</span>
+                                            )}
+                                          </td>
+                                          <td style={{ padding: '12px 8px', border: 'none' }}>
+                                            {isEditing ? (
+                                              <input
+                                                type="text"
+                                                value={currentData.brand}
+                                                onChange={(e) => handleTempRowChange('brand', e.target.value)}
+                                                style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: '4px', outline: 'none' }}
+                                              />
+                                            ) : (
+                                              <span style={{ display: 'block', width: '100%' }}>{row.brand}</span>
+                                            )}
+                                          </td>
+                                          <td style={{ padding: '12px 8px', border: 'none' }}>
+                                            {isEditing ? (
+                                              <select
+                                                value={currentData.parkingThirtyMin}
+                                                onChange={(e) => handleTempRowChange('parkingThirtyMin', e.target.value)}
+                                                style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: '4px', outline: 'none', background: '#fff' }}
+                                              >
+                                                <option value="">Chọn...</option>
+                                                <option value="Có">Có</option>
+                                                <option value="Không">Không</option>
+                                              </select>
+                                            ) : (
+                                              <span style={{ display: 'block', width: '100%' }}>{row.parkingThirtyMin || '-'}</span>
+                                            )}
+                                          </td>
+                                          <td style={{ padding: '12px 8px', border: 'none' }}>
+                                            {isEditing ? (
+                                              <input
+                                                type="text"
+                                                value={currentData.paymentMethod}
+                                                onChange={(e) => handleTempRowChange('paymentMethod', e.target.value)}
+                                                style={{ width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: '4px', outline: 'none' }}
+                                              />
+                                            ) : (
+                                              <span style={{ display: 'block', width: '100%' }}>{row.paymentMethod}</span>
+                                            )}
+                                          </td>
+                                          {showErrorColumn && (
+                                            <td style={{ padding: '12px 8px', border: 'none', textAlign: 'center', color: currentData.isValid ? '#10b981' : '#ef4444', fontWeight: '500' }}>
+                                              {currentData.isValid ? '' : (currentData.errors || []).join(', ')}
+                                            </td>
+                                          )}
+                                          <td style={{ padding: '12px 8px', border: 'none', textAlign: 'center' }}>
+                                            {isEditing ? (
+                                              <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                                                <button
+                                                  type="button"
+                                                  onClick={saveEditRow}
+                                                  style={{ background: '#10b981', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}
+                                                  title="Lưu"
+                                                >
+                                                  <i className="fa-solid fa-check"></i>
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  onClick={cancelEditRow}
+                                                  style={{ background: '#6b7280', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}
+                                                  title="Hủy"
+                                                >
+                                                  <i className="fa-solid fa-xmark"></i>
+                                                </button>
+                                              </div>
+                                            ) : (
+                                              <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => startEditRow(row)}
+                                                  style={{ background: 'transparent', border: 'none', color: '#3b82f6', cursor: 'pointer', fontSize: '1rem' }}
+                                                  title="Sửa"
+                                                >
+                                                  <i className="fa-solid fa-pen-to-square"></i>
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => removeRow(row.id)}
+                                                  style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1rem' }}
+                                                  title="Xóa dòng"
+                                                >
+                                                  <i className="fa-solid fa-trash"></i>
+                                                </button>
+                                              </div>
+                                            )}
+                                          </td>
+                                        </tr>
+                                      )
+                                    })
+                                  )}
+                                  {showManualRow && (
+                                    <tr style={{ background: '#f9fafb' }}>
+                                      <td style={{ padding: '12px 8px', border: 'none', textAlign: 'center' }}>+</td>
+                                      <td style={{ padding: '12px 8px', border: 'none' }}>
+                                        <input
+                                          type="text"
+                                          name="name"
+                                          value={manualRow.name}
+                                          onChange={handleManualRowChange}
+                                          placeholder="Nhập tên..."
+                                          style={{ width: '100%', border: 'none', outline: 'none', minHeight: '38px', background: 'transparent' }}
+                                        />
+                                      </td>
+                                      <td style={{ padding: '12px 8px', border: 'none' }}>
+                                        <input
+                                          type="text"
+                                          name="phone"
+                                          value={manualRow.phone}
+                                          onChange={handleManualRowChange}
+                                          placeholder="Nhập SĐT..."
+                                          style={{ width: '100%', border: 'none', outline: 'none', minHeight: '38px', background: 'transparent' }}
+                                        />
+                                      </td>
+                                      <td style={{ padding: '12px 8px', border: 'none' }}>
+                                        <input
+                                          type="text"
+                                          name="licensePlate"
+                                          value={manualRow.licensePlate}
+                                          onChange={handleManualRowChange}
+                                          placeholder="Nhập biển..."
+                                          style={{ width: '100%', border: 'none', outline: 'none', minHeight: '38px', background: 'transparent' }}
+                                        />
+                                      </td>
+                                      <td style={{ padding: '12px 8px', border: 'none' }}>
+                                        <select
+                                          name="vehicleType"
+                                          value={manualRow.vehicleType}
+                                          onChange={handleManualRowChange}
+                                          style={{ width: '100%', border: 'none', outline: 'none', minHeight: '38px', background: 'transparent' }}
+                                        >
+                                          <option value="">Chọn loại xe...</option>
+                                          {vehicleTypeOptions.map(option => (
+                                            <option key={option.id} value={option.name}>{option.name}</option>
+                                          ))}
+                                        </select>
+                                      </td>
+                                      <td style={{ padding: '12px 8px', border: 'none' }}>
+                                        <select
+                                          name="brand"
+                                          value={manualRow.brand}
+                                          onChange={handleManualRowChange}
+                                          style={{ width: '100%', border: 'none', outline: 'none', minHeight: '38px', background: 'transparent' }}
+                                        >
+                                          <option value="">Chọn hãng xe...</option>
+                                          {fleetVehicleModelBrand.map(option => (
+                                            <option key={option.id} value={option.name}>{option.name}</option>
+                                          ))}
+                                        </select>
+                                      </td>
+                                      <td style={{ padding: '12px 8px', border: 'none' }}>
+                                        <select
+                                          name="parkingThirtyMin"
+                                          value={manualRow.parkingThirtyMin}
+                                          onChange={handleManualRowChange}
+                                          style={{ width: '100%', border: 'none', outline: 'none', minHeight: '38px', background: 'transparent' }}
+                                        >
+                                          <option value="">Chọn...</option>
+                                          <option value="Có">Có</option>
+                                          <option value="Không">Không</option>
+                                        </select>
+                                      </td>
+                                      <td style={{ padding: '12px 8px', border: 'none' }}>
+                                        <select
+                                          name="paymentMethod"
+                                          value={manualRow.paymentMethod}
+                                          onChange={handleManualRowChange}
+                                          style={{ width: '100%', border: 'none', outline: 'none', minHeight: '38px', background: 'transparent' }}
+                                        >
+                                          <option value="">Chọn thanh toán...</option>
+                                          {paymentTypeOptions.map(option => (
+                                            <option key={option.value} value={option.label}>{option.label}</option>
+                                          ))}
+                                        </select>
+                                      </td>
+                                      {showErrorColumn && <td style={{ padding: '12px 8px', border: 'none' }}></td>}
+                                      <td style={{ padding: '12px 8px', border: 'none', textAlign: 'center' }}>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            addManualRow()
+                                            setShowManualRow(false)
+                                          }}
+                                          style={{ padding: '8px 12px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+                                        >
+                                          Lưu
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  )}
+                                </tbody>
+                              </table>
+                            </div>
+
+                            <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              {filterType !== 'invalid' && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (showManualRow) {
+                                      addManualRow();
+                                    } else {
+                                      setShowManualRow(true);
+                                    }
+                                  }}
+                                  style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: '#2563eb',
+                                    fontWeight: '600',
+                                    cursor: 'pointer',
+                                    padding: '0',
+                                    textDecoration: 'underline',
+                                  }}
+                                >
+                                  Thêm một dòng
+                                </button>
+                              )}
+                              {showManualRow && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setShowManualRow(false)
+                                    setManualRow({
+                                      name: '',
+                                      phone: '',
+                                      licensePlate: '',
+                                      vehicleType: '',
+                                      brand: '',
+                                      parkingThirtyMin: '',
+                                      paymentMethod: '',
+                                    })
+                                  }}
+                                  style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: '#6b7280',
+                                    cursor: 'pointer',
+                                    padding: '0',
+                                    textDecoration: 'underline',
+                                  }}
+                                >
+                                  Hủy
+                                </button>
+                              )}
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+                              <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                <button
+                                  onClick={handlePrevPage}
+                                  disabled={currentPage === 1}
+                                  style={{
+                                    padding: '4px 12px',
+                                    border: '1px solid #d1d5db',
+                                    background: currentPage === 1 ? '#f3f4f6' : '#fff',
+                                    borderRadius: '4px',
+                                    cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                                    color: currentPage === 1 ? '#9ca3af' : '#374151'
+                                  }}
+                                >
+                                  &lt;
+                                </button>
+                                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                                  <button
+                                    key={page}
+                                    onClick={() => handlePageChange(page)}
+                                    style={{
+                                      padding: '4px 12px',
+                                      border: '1px solid #d1d5db',
+                                      background: currentPage === page ? '#e5e7eb' : '#fff',
+                                      borderRadius: '4px',
+                                      cursor: 'pointer',
+                                      color: currentPage === page ? '#111827' : '#374151'
+                                    }}
+                                  >
+                                    {page}
+                                  </button>
+                                ))}
+                                <button
+                                  onClick={handleNextPage}
+                                  disabled={currentPage === totalPages || totalPages === 0}
+                                  style={{
+                                    padding: '4px 12px',
+                                    border: '1px solid #d1d5db',
+                                    background: currentPage === totalPages || totalPages === 0 ? '#f3f4f6' : '#fff',
+                                    borderRadius: '4px',
+                                    cursor: currentPage === totalPages || totalPages === 0 ? 'not-allowed' : 'pointer',
+                                    color: currentPage === totalPages || totalPages === 0 ? '#9ca3af' : '#374151'
+                                  }}
+                                >
+                                  &gt;
+                                </button>
+                                <select
+                                  value={itemsPerPage}
+                                  onChange={handleItemsPerPageChange}
+                                  style={{ padding: '4px 8px', border: '1px solid #d1d5db', background: '#fff', borderRadius: '4px', marginLeft: '8px' }}
+                                >
+                                  <option value={5}>5/trang</option>
+                                  <option value={10}>10/trang</option>
+                                  <option value={20}>20/trang</option>
+                                  <option value={50}>50/trang</option>
+                                </select>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '16px', marginTop: '32px', paddingTop: '16px', borderTop: '1px solid #d1d5db' }}>
+                        {activeTab === 'upload' ? (
+                          <>
+                            <button onClick={() => navigate('/my/menu')} style={{ padding: '8px 24px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#fff', color: '#374151', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <i className="fa-solid fa-xmark"></i> Đóng
                             </button>
-                          ))}
-                          <button 
-                            onClick={handleNextPage}
-                            disabled={currentPage === totalPages || totalPages === 0}
-                            style={{ 
-                              padding: '4px 12px', 
-                              border: '1px solid #d1d5db', 
-                              background: currentPage === totalPages || totalPages === 0 ? '#f3f4f6' : '#fff', 
-                              borderRadius: '4px',
-                              cursor: currentPage === totalPages || totalPages === 0 ? 'not-allowed' : 'pointer',
-                              color: currentPage === totalPages || totalPages === 0 ? '#9ca3af' : '#374151'
-                            }}
-                          >
-                            &gt;
+                            <button onClick={() => setActiveTab('check')} style={{ padding: '8px 24px', border: 'none', borderRadius: '4px', background: '#e11d48', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              Tiếp <i className="fa-solid fa-chevron-right"></i>
+                            </button>
+                          </>
+                        ) : (
+                          <button onClick={handleSubmitExcel} style={{ padding: '8px 24px', border: 'none', borderRadius: '4px', background: '#e11d48', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <i className="fa-solid fa-save"></i> Lưu dữ liệu hợp lệ
                           </button>
-                          <select 
-                            value={itemsPerPage}
-                            onChange={handleItemsPerPageChange}
-                            style={{ padding: '4px 8px', border: '1px solid #d1d5db', background: '#fff', borderRadius: '4px', marginLeft: '8px' }}
-                          >
-                            <option value={5}>5/trang</option>
-                            <option value={10}>10/trang</option>
-                            <option value={20}>20/trang</option>
-                            <option value={50}>50/trang</option>
-                          </select>
-                        </div>
+                        )}
                       </div>
                     </div>
-                  )}
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '16px', marginTop: '32px', paddingTop: '16px', borderTop: '1px solid #d1d5db' }}>
-                  {activeTab === 'upload' ? (
-                    <>
-                      <button onClick={() => navigate('/my/menu')} style={{ padding: '8px 24px', border: '1px solid #d1d5db', borderRadius: '4px', background: '#fff', color: '#374151', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <i className="fa-solid fa-xmark"></i> Đóng
-                      </button>
-                      <button onClick={() => setActiveTab('check')} style={{ padding: '8px 24px', border: 'none', borderRadius: '4px', background: '#e11d48', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        Tiếp <i className="fa-solid fa-chevron-right"></i>
-                      </button>
-                    </>
-                  ) : (
-                    <button onClick={handleSubmitExcel} style={{ padding: '8px 24px', border: 'none', borderRadius: '4px', background: '#e11d48', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <i className="fa-solid fa-save"></i> Lưu dữ liệu hợp lệ
-                    </button>
-                  )}
-                </div>
-              </div>
-              </div>
-            ) : null
-          )}
+                  </div>
+                ) : null
+              )}
 
             </section>
           </div>
